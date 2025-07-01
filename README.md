@@ -1,6 +1,66 @@
-# Getting Started with Create React App
+# PPView - Particle Physics Viewer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based visualization tool for molecular dynamics simulations, specifically designed for oxDNA systems. This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## Features
+
+### Core Visualization
+- Interactive 3D particle visualization using Three.js and React Three Fiber
+- Support for trajectory playback with controls
+- Particle and patch rendering with customizable color schemes
+- Simulation box visualization
+- Screenshot and GLTF export capabilities
+
+### Clustering Analysis
+- **DBSCAN Clustering**: Automatically cluster particles based on spatial proximity
+- **Interactive Parameters**: 
+  - Epsilon distance: Control the maximum distance between particles in a cluster
+  - Minimum points: Set the minimum number of particles required to form a cluster
+- **Real-time Statistics**: View cluster counts, sizes, and noise particles
+- **Size Distribution Histogram**: Shows how many clusters have each particle count (e.g., "3 clusters have 5 particles each")
+- **Selective Highlighting**: 
+  - Choose which clusters to highlight from the cluster list
+  - Option to show only selected clusters (dims non-selected particles)
+  - Highlighted clusters maintain their original particle colors but are scaled larger
+  - Perfect for focusing analysis on specific cluster sizes or regions
+
+### File Format Support
+- Lorenzo's topology format (.top files)
+- Flavio's topology format with particles.txt and patches.txt
+- Trajectory files (.dat, .traj, .conf, etc.)
+- Automatic file type detection and prioritization
+
+### User Interface
+- Collapsible control panels
+- Particle and patch legends
+- Selected particle display
+- Responsive design for different screen sizes
+
+## Usage
+
+### Getting Started
+1. Start the application using `npm start`
+2. Drag and drop your simulation files (topology + trajectory)
+3. Use the controls to navigate through the trajectory
+4. Enable clustering analysis using the 📊 button in the controls
+
+### Clustering Analysis
+1. **Enable Clustering**: Click the 📊 clustering icon in the control panel
+2. **Adjust Parameters**: 
+   - Use the epsilon slider to control cluster detection sensitivity
+   - Adjust minimum points to filter small clusters
+3. **View Statistics**: Check the real-time cluster statistics and size distribution
+4. **Highlight Clusters**: 
+   - Select individual clusters from the list
+   - Use "Show only selected clusters" to focus on specific clusters
+   - Selected clusters maintain their original colors but are enlarged for visibility
+   - Non-selected particles are dimmed and shrunk when "show only" mode is enabled
+
+### Keyboard Shortcuts
+- `P`: Take a screenshot
+- `Q/A`: Shift particles along X-axis
+- `W/S`: Shift particles along Y-axis
+- `E/D`: Shift particles along Z-axis
 
 ## Available Scripts
 

@@ -1,0 +1,451 @@
+/* ClusteringPane.css */
+
+/* Toggle button when panel is collapsed */
+.clustering-pane-toggle {
+  position: absolute;
+  top: 20px;
+  left: 250px; /* Positioned next to particle legend */
+  z-index: 10;
+}
+
+.toggle-clustering-button {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3498db;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.toggle-clustering-button:hover {
+  background-color: #3498db;
+  color: white;
+  transform: scale(1.05);
+}
+
+/* Main clustering pane */
+.clustering-pane {
+  position: absolute;
+  top: 20px;
+  left: 250px; /* Positioned next to particle legend */
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 2px solid #3498db;
+  border-radius: 10px;
+  padding: 20px;
+  width: 350px;
+  max-height: 80vh;
+  overflow-y: auto;
+  backdrop-filter: blur(15px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Header */
+.clustering-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
+}
+
+.clustering-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #7f8c8d;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.close-button:hover {
+  background-color: #e74c3c;
+  color: white;
+}
+
+/* Controls section */
+.clustering-controls {
+  margin-bottom: 20px;
+}
+
+.parameter-control {
+  margin-bottom: 15px;
+}
+
+.parameter-control label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.parameter-slider {
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(to right, #e9ecef, #3498db);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+.parameter-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #3498db;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.parameter-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #2980b9;
+}
+
+.parameter-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #3498db;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Statistics section */
+.clustering-statistics {
+  margin-bottom: 20px;
+}
+
+.clustering-statistics h4 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #ecf0f1;
+  padding-bottom: 8px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(52, 152, 219, 0.1);
+  padding: 10px;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* Histogram section */
+.clustering-histogram {
+  margin-bottom: 20px;
+}
+
+.clustering-histogram h4 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #ecf0f1;
+  padding-bottom: 8px;
+}
+
+.histogram-container {
+  background-color: rgba(236, 240, 241, 0.5);
+  border-radius: 8px;
+  padding: 15px;
+  border: 1px solid #bdc3c7;
+}
+
+.histogram-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  height: 120px;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 5px;
+}
+
+.histogram-bar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 30px;
+  flex-shrink: 0;
+}
+
+.histogram-bar {
+  background: linear-gradient(to top, #3498db, #5dade2);
+  border-radius: 2px 2px 0 0;
+  width: 100%;
+  min-height: 2px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid #2980b9;
+}
+
+.histogram-bar:hover {
+  background: linear-gradient(to top, #2980b9, #3498db);
+  transform: scaleY(1.1);
+}
+
+.histogram-labels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 4px;
+  gap: 2px;
+}
+
+.histogram-label-count {
+  font-size: 11px;
+  color: #2c3e50;
+  font-weight: 600;
+  text-align: center;
+  min-height: 14px;
+}
+
+.histogram-label-size {
+  font-size: 9px;
+  color: #7f8c8d;
+  text-align: center;
+  font-weight: 500;
+  min-height: 12px;
+}
+
+.histogram-axis-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 10px;
+  font-size: 11px;
+  color: #7f8c8d;
+}
+
+.histogram-y-axis {
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: rotate(-90deg) translateY(-50%);
+  font-size: 11px;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.histogram-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  color: #7f8c8d;
+  font-style: italic;
+  background-color: rgba(189, 195, 199, 0.1);
+  border-radius: 4px;
+}
+
+/* Cluster selection section */
+.cluster-selection {
+  margin-bottom: 10px;
+}
+
+.selection-controls {
+  margin-bottom: 15px;
+}
+
+.selection-controls h4 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #ecf0f1;
+  padding-bottom: 8px;
+}
+
+.selection-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.select-button {
+  flex: 1;
+  background-color: #ecf0f1;
+  border: 2px solid #bdc3c7;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2c3e50;
+  transition: all 0.3s ease;
+}
+
+.select-button:hover {
+  background-color: #3498db;
+  border-color: #3498db;
+  color: white;
+  transform: translateY(-2px);
+}
+
+.select-button:active {
+  transform: translateY(0);
+}
+
+.highlight-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.highlight-checkbox input[type="checkbox"] {
+  margin-right: 8px;
+  transform: scale(1.2);
+  accent-color: #3498db;
+}
+
+/* Cluster list */
+.cluster-list {
+  background-color: rgba(236, 240, 241, 0.3);
+  border-radius: 8px;
+  border: 1px solid #bdc3c7;
+  overflow: hidden;
+}
+
+.cluster-list-header {
+  display: flex;
+  justify-content: space-between;
+  background-color: #3498db;
+  color: white;
+  padding: 10px 15px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cluster-items {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.cluster-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #ecf0f1;
+  transition: background-color 0.3s ease;
+}
+
+.cluster-item:last-child {
+  border-bottom: none;
+}
+
+.cluster-item:hover {
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.cluster-info {
+  font-size: 13px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.cluster-checkbox {
+  cursor: pointer;
+}
+
+.cluster-checkbox input[type="checkbox"] {
+  transform: scale(1.2);
+  accent-color: #3498db;
+  cursor: pointer;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .clustering-pane {
+    left: 20px;
+    width: 300px;
+  }
+  
+  .clustering-pane-toggle {
+    left: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .clustering-pane {
+    width: 280px;
+    max-height: 70vh;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Scrollbar styling for webkit browsers */
+.clustering-pane::-webkit-scrollbar,
+.cluster-items::-webkit-scrollbar {
+  width: 8px;
+}
+
+.clustering-pane::-webkit-scrollbar-track,
+.cluster-items::-webkit-scrollbar-track {
+  background: rgba(189, 195, 199, 0.3);
+  border-radius: 4px;
+}
+
+.clustering-pane::-webkit-scrollbar-thumb,
+.cluster-items::-webkit-scrollbar-thumb {
+  background: #3498db;
+  border-radius: 4px;
+}
+
+.clustering-pane::-webkit-scrollbar-thumb:hover,
+.cluster-items::-webkit-scrollbar-thumb:hover {
+  background: #2980b9;
+}

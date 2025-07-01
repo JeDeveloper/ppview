@@ -7,6 +7,7 @@ import PatchLegend from "./components/PatchLegend";
 import ParticleLegend from "./components/ParticleLegend";
 import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay"; // Import the new component
 import ColorSchemeSelector from "./components/ColorSchemeSelector"; // Import the new color scheme selector
+import ClusteringPane from "./components/ClusteringPane"; // Import the new clustering pane
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { getCurrentColorScheme, getParticleColors } from "./colors";
 import "./styles.css";
@@ -96,6 +97,11 @@ function App() {
 
   // New state for selected particles
   const [selectedParticles, setSelectedParticles] = useState([]);
+  
+  // State for clustering pane
+  const [showClusteringPane, setShowClusteringPane] = useState(false);
+  const [highlightedClusters, setHighlightedClusters] = useState(new Set());
+  const [showOnlyHighlightedClusters, setShowOnlyHighlightedClusters] = useState(false);
 
   // State to store the scene reference for GLTF export
   const [sceneRef, setSceneRef] = useState(null);
@@ -165,6 +171,12 @@ function App() {
       alert('Failed to take screenshot');
     }
   }, [sceneRef, currentConfigIndex]);
+
+  // Handle cluster highlighting
+  const handleHighlightClusters = useCallback((clusterIndices, showOnlySelected) => {
+    setHighlightedClusters(clusterIndices);
+    setShowOnlyHighlightedClusters(showOnlySelected);
+  }, []);
 
   const handleFilesReceived = async (files) => {
     if (!files || files.length === 0) {
@@ -1278,6 +1290,8 @@ function App() {
           showSimulationBox={showSimulationBox} // Pass simulation box visibility
           showPatches={showPatchLegend} // Control patch visibility with patch legend button
           colorScheme={currentColorScheme} // Pass current color scheme
+          highlightedClusters={highlightedClusters} // Pass highlighted clusters
+          showOnlyHighlightedClusters={showOnlyHighlightedClusters} // Pass cluster highlighting mode
         />
       )}
       {positions.length > 0 && !isLoading && (
@@ -1373,6 +1387,15 @@ function App() {
                     />
                     <span className="toggle-icon">📦</span>
                   </label>
+                  {/* Checkbox to toggle Clustering Pane */}
+                  <label className="icon-toggle" title="Show Clustering Pane">
+                    <input
+                      type="checkbox"
+                      checked={showClusteringPane}
+                      onChange={(e) => setShowClusteringPane(e.target.checked)}
+                    />
+                    <span className="toggle-icon">📊</span>
+                  </label>
                 </div>
                 
                 {/* Color scheme selector */}
@@ -1427,6 +1450,15 @@ function App() {
       {topData && showParticleLegend && !isLoading && (
         <ParticleLegend 
           particleTypes={topData.particleTypes} 
+          colorScheme={currentColorScheme}
+        />
+      )}
+      {/* Conditionally render the ClusteringPane component */}
+      {positions.length > 0 && showClusteringPane && !isLoading && (
+        <ClusteringPane
+          positions={positions}
+          boxSize={currentBoxSize}
+          onHighlightClusters={handleHighlightClusters}
           colorScheme={currentColorScheme}
         />
       )}

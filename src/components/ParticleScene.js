@@ -14,6 +14,8 @@ const ParticleScene = ({
   showSimulationBox,
   showPatches,
   colorScheme,
+  highlightedClusters,
+  showOnlyHighlightedClusters,
 }) => {
   return (
     <Canvas 
@@ -31,6 +33,8 @@ const ParticleScene = ({
         showSimulationBox={showSimulationBox}
         showPatches={showPatches}
         colorScheme={colorScheme}
+        highlightedClusters={highlightedClusters}
+        showOnlyHighlightedClusters={showOnlyHighlightedClusters}
       />
     </Canvas>
   );
@@ -45,6 +49,8 @@ function SceneContent({
   showSimulationBox,
   showPatches,
   colorScheme,
+  highlightedClusters,
+  showOnlyHighlightedClusters,
 }) {
   const controlsRef = useRef();
   const { scene, camera, invalidate, gl } = useThree();
@@ -131,6 +137,8 @@ function SceneContent({
         onParticleDoubleClick={handleParticleDoubleClick} // Pass the callback
         showPatches={showPatches}
         colorScheme={colorScheme}
+        highlightedClusters={highlightedClusters}
+        showOnlyHighlightedClusters={showOnlyHighlightedClusters}
       />
 
       {/* Add SSAO for ambient occlusion effect */}

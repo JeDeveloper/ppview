@@ -12,9 +12,11 @@ function Particles({
   onParticleDoubleClick,
   showPatches = true, // Default to true for backward compatibility
   colorScheme = null, // Allow color scheme to be passed as prop
+  highlightedClusters = new Set(),
+  showOnlyHighlightedClusters = false,
 }) {
   const meshRef = useRef();
-  const count = positions.length;
+  const count = Math.max(1, positions?.length || 0); // Ensure minimum count of 1
   const { gl, camera } = useThree(); // For raycasting
 
   // Create geometry and material once
@@ -33,37 +35,66 @@ function Particles({
 
   // Memoize particle data to avoid recalculation
   const particleData = useMemo(() => {
-    return positions.map((pos, i) => ({
-      position: {
-        x: pos.x - boxSize[0] / 2,
-        y: pos.y - boxSize[1] / 2,
-        z: pos.z - boxSize[2] / 2,
-      },
-      colorIndex: pos.typeIndex % particleColors.length,
-      typeColor: new THREE.Color(particleColors[pos.typeIndex % particleColors.length])
-    }));
-  }, [positions, boxSize, particleColors]);
+    if (!positions || positions.length === 0) return [];
+    
+    return positions.map((pos, i) => {
+      const isInHighlightedCluster = highlightedClusters.has(i);
+      const shouldShow = !showOnlyHighlightedClusters || isInHighlightedCluster;
+      
+      return {
+        position: {
+          x: pos.x - boxSize[0] / 2,
+          y: pos.y - boxSize[1] / 2,
+          z: pos.z - boxSize[2] / 2,
+        },
+        colorIndex: pos.typeIndex % particleColors.length,
+        typeColor: new THREE.Color(particleColors[pos.typeIndex % particleColors.length]),
+        isInHighlightedCluster,
+        shouldShow
+      };
+    });
+  }, [positions, boxSize, particleColors, highlightedClusters, showOnlyHighlightedClusters]);
 
   // Create colors array for the particles
   const colors = useMemo(() => {
-    const colorArray = new Float32Array(count * 3);
-    particleData.forEach((data, i) => {
-      colorArray.set([data.typeColor.r, data.typeColor.g, data.typeColor.b], i * 3);
-    });
+    if (particleData.length === 0) return new Float32Array(0);
+    
+    const colorArray = new Float32Array(particleData.length * 3);
+    for (let i = 0; i < particleData.length; i++) {
+      const data = particleData[i];
+      if (data && data.typeColor) {
+        const offset = i * 3;
+        if (offset + 2 < colorArray.length) {
+          colorArray[offset] = data.typeColor.r;
+          colorArray[offset + 1] = data.typeColor.g;
+          colorArray[offset + 2] = data.typeColor.b;
+        }
+      }
+    }
     return colorArray;
-  }, [particleData, count]);
+  }, [particleData]);
 
   // Update colors when color scheme changes
   useEffect(() => {
     if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
       
+      // Ensure we don't exceed the actual instance count
+      const instanceCount = Math.min(mesh.count, particleData.length);
+      
       // Update instance colors with new color scheme
-      particleData.forEach((data, i) => {
+      for (let i = 0; i < instanceCount; i++) {
+        const data = particleData[i];
+        if (!data) continue; // Skip if data is undefined
+        
         if (!selectedParticles.includes(i)) {
-          mesh.setColorAt(i, data.typeColor);
+          try {
+            mesh.setColorAt(i, data.typeColor);
+          } catch (error) {
+            console.warn(`Error updating color for particle ${i}:`, error);
+          }
         }
-      });
+      }
       
       mesh.instanceColor.needsUpdate = true;
     }
@@ -71,25 +102,46 @@ function Particles({
 
   // Set positions and colors for instanced particles (optimized)
   useEffect(() => {
-    if (meshRef.current && particleData.length > 0) {
+    if (meshRef.current && particleData.length > 0 && colors.length > 0) {
       const mesh = meshRef.current;
       const dummy = new THREE.Object3D();
 
-      particleData.forEach((data, i) => {
-        // Set position
-        dummy.position.set(
-          data.position.x,
-          data.position.y,
-          data.position.z,
-        );
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
-      });
+      // Ensure we don't exceed the actual instance count and have valid data
+      const actualCount = Math.min(mesh.count, particleData.length, colors.length / 3);
+      
+      // Set positions
+      for (let i = 0; i < actualCount; i++) {
+        const data = particleData[i];
+        if (!data || !data.position) continue;
+        
+        try {
+          dummy.position.set(
+            data.position.x,
+            data.position.y,
+            data.position.z,
+          );
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        } catch (error) {
+          console.warn(`Error setting particle ${i} position:`, error);
+          break; // Stop processing if we hit an error
+        }
+      }
 
       mesh.instanceMatrix.needsUpdate = true;
 
-      // Set initial colors
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+      // Set initial colors with strict bounds checking
+      try {
+        if (colors.length >= actualCount * 3 && actualCount > 0) {
+          const safeColorArray = new Float32Array(actualCount * 3);
+          for (let i = 0; i < actualCount * 3; i++) {
+            safeColorArray[i] = colors[i] || 0;
+          }
+          mesh.instanceColor = new THREE.InstancedBufferAttribute(safeColorArray, 3);
+        }
+      } catch (error) {
+        console.warn('Error setting instance colors:', error);
+      }
     }
   }, [particleData, colors]);
 
@@ -162,33 +214,79 @@ function Particles({
     };
   }, [gl, handleClick, handleDoubleClick]);
 
-  // Apply selection effect to selected particles (optimized)
+  // Apply selection effect and cluster highlighting to particles (optimized)
   useEffect(() => {
     if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
       const yellowColor = new THREE.Color("yellow");
+      const dimmedColor = new THREE.Color(0.3, 0.3, 0.3); // Dimmed color for non-highlighted particles
+      const dummy = new THREE.Object3D();
 
-      particleData.forEach((data, i) => {
-        const color = selectedParticles.includes(i) ? yellowColor : data.typeColor;
-        mesh.setColorAt(i, color);
-      });
+      // Ensure we don't exceed the actual instance count
+      const instanceCount = Math.min(mesh.count, particleData.length);
+
+      for (let i = 0; i < instanceCount; i++) {
+        const data = particleData[i];
+        if (!data) continue; // Skip if data is undefined
+        
+        let color;
+        let scale = 1.0;
+        
+        // Determine color based on selection and cluster highlighting
+        if (selectedParticles.includes(i)) {
+          color = yellowColor; // Selected particles are yellow
+        } else if (data.isInHighlightedCluster && highlightedClusters.size > 0) {
+          color = data.typeColor; // Keep original particle color for highlighted clusters
+          scale = 1.3; // Make highlighted cluster particles larger
+        } else if (showOnlyHighlightedClusters && !data.shouldShow) {
+          color = dimmedColor; // Dimmed particles when showing only clusters
+          scale = 0.3; // Much smaller to make them less visible
+        } else {
+          color = data.typeColor; // Normal particle color
+        }
+        
+        // Safely set color and matrix
+        try {
+          mesh.setColorAt(i, color);
+          
+          // Update scale for cluster highlighting
+          dummy.position.set(
+            data.position.x,
+            data.position.y,
+            data.position.z
+          );
+          dummy.scale.set(scale, scale, scale);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        } catch (error) {
+          console.warn(`Error setting particle ${i} properties:`, error);
+        }
+      }
 
       mesh.instanceColor.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
     }
-  }, [selectedParticles, particleData]);
+  }, [selectedParticles, particleData, highlightedClusters, showOnlyHighlightedClusters]);
 
   // Group particles by type
   const particlesByType = useMemo(() => {
     const map = new Map();
-    positions.forEach((pos) => {
-      const typeIndex = pos.typeIndex;
-      if (!map.has(typeIndex)) {
-        map.set(typeIndex, { particleType: pos.particleType, particles: [] });
-      }
-      map.get(typeIndex).particles.push(pos);
-    });
+    if (positions && positions.length > 0) {
+      positions.forEach((pos) => {
+        const typeIndex = pos.typeIndex;
+        if (!map.has(typeIndex)) {
+          map.set(typeIndex, { particleType: pos.particleType, particles: [] });
+        }
+        map.get(typeIndex).particles.push(pos);
+      });
+    }
     return map;
   }, [positions]);
+  
+  // Early return if no positions (after all hooks)
+  if (!positions || positions.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -207,16 +305,37 @@ function Particles({
             particleType.patches.length > 0 &&
             particleType.patches.length === particleType.patchPositions.length
           ) {
-            return (
-              <Patches
-                key={`patches-${particleType.typeIndex}-${idx}`}
-                particles={particles}
-                patchPositions={particleType.patchPositions}
-                patchIDs={particleType.patches}
-                boxSize={boxSize}
-                colorScheme={colorScheme}
-              />
-            );
+            // Filter particles based on cluster visibility
+            let filteredParticles = particles;
+            if (showOnlyHighlightedClusters) {
+              if (highlightedClusters.size > 0) {
+                // Only show patches for particles that are in highlighted clusters
+                filteredParticles = particles.filter((particle, index) => {
+                  // Find the global index of this particle
+                  const globalIndex = positions.findIndex(p => 
+                    p.x === particle.x && p.y === particle.y && p.z === particle.z
+                  );
+                  return highlightedClusters.has(globalIndex);
+                });
+              } else {
+                // If "show only selected" is enabled but no clusters are selected, show no patches
+                filteredParticles = [];
+              }
+            }
+            
+            // Only render patches if there are visible particles
+            if (filteredParticles.length > 0) {
+              return (
+                <Patches
+                  key={`patches-${particleType.typeIndex}-${idx}`}
+                  particles={filteredParticles}
+                  patchPositions={particleType.patchPositions}
+                  patchIDs={particleType.patches}
+                  boxSize={boxSize}
+                  colorScheme={colorScheme}
+                />
+              );
+            }
           }
           return null;
         },
