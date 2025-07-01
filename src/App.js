@@ -1202,6 +1202,7 @@ function App() {
           setSelectedParticles={setSelectedParticles} // Pass as prop
           onSceneReady={setSceneRef} // Pass callback to get scene reference
           showSimulationBox={showSimulationBox} // Pass simulation box visibility
+          showPatches={showPatchLegend} // Control patch visibility with patch legend button
         />
       )}
       {positions.length > 0 && !isLoading && (

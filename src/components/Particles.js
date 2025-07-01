@@ -9,7 +9,8 @@ function Particles({
   boxSize,
   selectedParticles,
   setSelectedParticles,
-  onParticleDoubleClick, // Add this prop
+  onParticleDoubleClick,
+  showPatches = true, // Default to true for backward compatibility
 }) {
   const meshRef = useRef();
   const count = positions.length;
@@ -175,7 +176,7 @@ function Particles({
         {/* This instancedMesh renders the particles */}
       </instancedMesh>
 
-      {Array.from(particlesByType.values()).map(
+      {showPatches && Array.from(particlesByType.values()).map(
         ({ particleType, particles }, idx) => {
           // Check if this particle type has valid patch data
           if (
