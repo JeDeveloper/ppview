@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import FileDropZone from "./components/FileDropZone";
 import ParticleScene from "./components/ParticleScene";
 import PatchLegend from "./components/PatchLegend";
@@ -27,9 +28,13 @@ function App() {
   const [filesDropped, setFilesDropped] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Loading state
   const [showParticleLegend, setShowParticleLegend] = useState(false);
+  const [showSimulationBox, setShowSimulationBox] = useState(true);
 
   // New state for selected particles
   const [selectedParticles, setSelectedParticles] = useState([]);
+
+  // State to store the scene reference for GLTF export
+  const [sceneRef, setSceneRef] = useState(null);
 
   const handleFilesReceived = async (files) => {
     if (!files || files.length === 0) {
@@ -555,6 +560,235 @@ function App() {
     [currentBoxSize],
   );
 
+  // Function to export the scene as GLTF
+  const exportGLTF = useCallback(() => {
+    if (!positions || positions.length === 0) {
+      alert('No particles to export');
+      return;
+    }
+
+    // Import particle colors and patch color utility
+    const { mutedParticleColors } = require('./colors');
+    const { getColorForPatchID } = require('./utils/colorUtils');
+
+    // Create a new scene for export
+    const exportScene = new THREE.Scene();
+    
+    // Add ambient light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    exportScene.add(ambientLight);
+    
+    // Add simulation box only if visible
+    if (showSimulationBox) {
+      const boxGeometry = new THREE.BoxGeometry(...currentBoxSize);
+      const boxMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x808080, 
+        wireframe: true 
+      });
+      const boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
+      boxMesh.name = 'SimulationBox';
+      exportScene.add(boxMesh);
+    }
+    
+    // Group particles by type for efficiency
+    const particlesByType = new Map();
+    
+    positions.forEach((pos, index) => {
+      const typeIndex = pos.typeIndex;
+      if (!particlesByType.has(typeIndex)) {
+        particlesByType.set(typeIndex, []);
+      }
+      particlesByType.get(typeIndex).push({
+        position: {
+          x: pos.x - currentBoxSize[0] / 2,
+          y: pos.y - currentBoxSize[1] / 2,
+          z: pos.z - currentBoxSize[2] / 2
+        },
+        index
+      });
+    });
+    
+    // Create optimized sphere geometry (lower poly for better performance)
+    const sphereGeometry = new THREE.SphereGeometry(0.5, 8, 6);
+    
+    // Create instanced mesh for each particle type
+    particlesByType.forEach((particles, typeIndex) => {
+      const colorIndex = typeIndex % mutedParticleColors.length;
+      const particleColor = new THREE.Color(mutedParticleColors[colorIndex]);
+      
+      // Create material for this particle type
+      const material = new THREE.MeshStandardMaterial({
+        color: particleColor,
+        metalness: 0.3,
+        roughness: 0.7,
+      });
+      
+      // Create instanced mesh for this type
+      const instancedMesh = new THREE.InstancedMesh(
+        sphereGeometry, 
+        material, 
+        particles.length
+      );
+      
+      // Set up instances
+      const dummy = new THREE.Object3D();
+      particles.forEach((particle, i) => {
+        dummy.position.set(
+          particle.position.x,
+          particle.position.y,
+          particle.position.z
+        );
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(i, dummy.matrix);
+      });
+      
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      instancedMesh.name = `ParticleType_${typeIndex}`;
+      
+      exportScene.add(instancedMesh);
+    });
+
+    // Add patches to the export
+    if (topData && topData.particleTypes) {
+      // Group particles by type for patch processing
+      const particlesByType = new Map();
+      
+      positions.forEach((pos, index) => {
+        const typeIndex = pos.typeIndex;
+        if (!particlesByType.has(typeIndex)) {
+          particlesByType.set(typeIndex, []);
+        }
+        particlesByType.get(typeIndex).push({
+          particle: pos,
+          index
+        });
+      });
+      
+      // Process patches for each particle type
+      topData.particleTypes.forEach((particleType) => {
+        if (particleType.patchPositions && particleType.patchPositions.length > 0) {
+          const particlesOfThisType = particlesByType.get(particleType.typeIndex) || [];
+          
+          if (particlesOfThisType.length > 0) {
+            // Group patches by patch ID for efficient instancing
+            const patchesByID = new Map();
+            
+            particlesOfThisType.forEach(({ particle }) => {
+              const particlePosition = new THREE.Vector3(
+                particle.x - currentBoxSize[0] / 2,
+                particle.y - currentBoxSize[1] / 2,
+                particle.z - currentBoxSize[2] / 2
+              );
+              
+              // Get rotation matrix if available
+              let rotationMatrix = null;
+              if (particle.rotationMatrix) {
+                rotationMatrix = new THREE.Matrix3().fromArray(particle.rotationMatrix.elements);
+              }
+              
+              particleType.patchPositions.forEach((patchOffset, patchIndex) => {
+                const patchID = particleType.patches[patchIndex];
+                
+                if (!patchesByID.has(patchID)) {
+                  patchesByID.set(patchID, []);
+                }
+                
+                // Compute patch position
+                const localPatchPosition = new THREE.Vector3(
+                  patchOffset.x,
+                  patchOffset.y,
+                  patchOffset.z
+                ).multiplyScalar(0.5);
+                
+                // Apply rotation if available
+                let rotatedPatchPosition = localPatchPosition.clone();
+                if (rotationMatrix) {
+                  rotatedPatchPosition.applyMatrix3(rotationMatrix);
+                }
+                
+                // Translate to particle's global position
+                const finalPatchPosition = rotatedPatchPosition.add(particlePosition);
+                
+                patchesByID.get(patchID).push({
+                  position: finalPatchPosition,
+                  particleIndex: particle.index
+                });
+              });
+            });
+            
+            // Create instanced meshes for each patch ID
+            const patchGeometry = new THREE.SphereGeometry(0.3, 6, 4); // Smaller, lower-poly patches
+            
+            patchesByID.forEach((patches, patchID) => {
+              const patchColor = getColorForPatchID(patchID);
+              
+              const patchMaterial = new THREE.MeshStandardMaterial({
+                color: patchColor,
+                metalness: 0.2,
+                roughness: 0.8,
+              });
+              
+              const patchInstancedMesh = new THREE.InstancedMesh(
+                patchGeometry,
+                patchMaterial,
+                patches.length
+              );
+              
+              // Set up patch instances
+              const dummy = new THREE.Object3D();
+              patches.forEach((patch, i) => {
+                dummy.position.copy(patch.position);
+                dummy.updateMatrix();
+                patchInstancedMesh.setMatrixAt(i, dummy.matrix);
+              });
+              
+              patchInstancedMesh.instanceMatrix.needsUpdate = true;
+              patchInstancedMesh.name = `Patches_ID_${patchID}_Type_${particleType.typeIndex}`;
+              
+              exportScene.add(patchInstancedMesh);
+            });
+          }
+        }
+      });
+    }
+
+    // Export with optimized settings
+    const exporter = new GLTFExporter();
+    
+    exporter.parse(
+      exportScene,
+      (gltf) => {
+        const output = JSON.stringify(gltf, null, 2);
+        const blob = new Blob([output], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ppview_scene_config_${currentConfigIndex + 1}.gltf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+        
+        const boxText = showSimulationBox ? 'with simulation box' : 'without simulation box';
+        console.log(`Exported ${positions.length} particles grouped by ${particlesByType.size} types ${boxText} to GLTF`);
+      },
+      (error) => {
+        console.error('Error exporting GLTF:', error);
+        alert('Failed to export GLTF file');
+      },
+      {
+        binary: false,
+        includeCustomExtensions: false,
+        maxTextureSize: 1024,
+        embedImages: false
+      }
+    );
+  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox]);
+
   // useEffect to handle key presses
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -598,6 +832,8 @@ function App() {
           boxSize={currentBoxSize}
           selectedParticles={selectedParticles} // Pass as prop
           setSelectedParticles={setSelectedParticles} // Pass as prop
+          onSceneReady={setSceneRef} // Pass callback to get scene reference
+          showSimulationBox={showSimulationBox} // Pass simulation box visibility
         />
       )}
       {positions.length > 0 && !isLoading && (
@@ -631,6 +867,19 @@ function App() {
             />
             Show Particle Legend
           </label>
+          {/* Checkbox to toggle Simulation Box */}
+          <label className="legend-toggle">
+            <input
+              type="checkbox"
+              checked={showSimulationBox}
+              onChange={(e) => setShowSimulationBox(e.target.checked)}
+            />
+            Show Simulation Box
+          </label>
+          {/* GLTF Export Button */}
+          <button className="export-button" onClick={exportGLTF}>
+            Export GLTF
+          </button>
         </div>
       )}
       {/* Conditionally render the SelectedParticlesDisplay component */}

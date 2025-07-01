@@ -1,36 +1,51 @@
-import React, { useRef } from "react";
+import React, { useRef, forwardRef, useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Stats } from "@react-three/drei";
 import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 
-function ParticleScene({
+const ParticleScene = ({
   positions,
   boxSize,
   selectedParticles,
   setSelectedParticles,
-}) {
+  onSceneReady,
+  showSimulationBox,
+}) => {
   return (
-    <Canvas camera={{ position: [0, 0, Math.max(...boxSize) * 1.5], fov: 75 }}>
+    <Canvas 
+      camera={{ position: [0, 0, Math.max(...boxSize) * 1.5], fov: 75 }}
+    >
       <SceneContent
         positions={positions}
         boxSize={boxSize}
         selectedParticles={selectedParticles}
         setSelectedParticles={setSelectedParticles}
+        onSceneReady={onSceneReady}
+        showSimulationBox={showSimulationBox}
       />
     </Canvas>
   );
-}
+};
 
 function SceneContent({
   positions,
   boxSize,
   selectedParticles,
   setSelectedParticles,
+  onSceneReady,
+  showSimulationBox,
 }) {
   const controlsRef = useRef();
-  const { camera } = useThree();
+  const { scene, camera } = useThree();
+
+  // Provide scene reference to parent component
+  useEffect(() => {
+    if (onSceneReady && scene) {
+      onSceneReady(scene);
+    }
+  }, [onSceneReady, scene]);
 
   // Function to handle double-click on a particle
   const handleParticleDoubleClick = (particlePosition) => {
@@ -68,11 +83,13 @@ function SceneContent({
       <ambientLight intensity={0.5} />
       <Environment preset="sunset" />
 
-      {/* Render the simulation box */}
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={boxSize} />
-        <meshBasicMaterial color="gray" wireframe />
-      </mesh>
+      {/* Render the simulation box conditionally */}
+      {showSimulationBox && (
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={boxSize} />
+          <meshBasicMaterial color="gray" wireframe />
+        </mesh>
+      )}
 
       <Particles
         positions={positions}
