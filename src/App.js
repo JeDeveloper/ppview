@@ -93,6 +93,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false); // Loading state
   const [showParticleLegend, setShowParticleLegend] = useState(false);
   const [showSimulationBox, setShowSimulationBox] = useState(true);
+  const [showBackdropPlanes, setShowBackdropPlanes] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
 
   // New state for selected particles
@@ -1358,6 +1359,7 @@ function App() {
           setSelectedParticles={setSelectedParticles} // Pass as prop
           onSceneReady={setSceneRef} // Pass callback to get scene reference
           showSimulationBox={showSimulationBox} // Pass simulation box visibility
+          showBackdropPlanes={showBackdropPlanes} // Pass backdrop planes visibility
           showPatches={showPatchLegend} // Control patch visibility with patch legend button
           colorScheme={currentColorScheme} // Pass current color scheme
           highlightedClusters={highlightedClusters} // Pass highlighted clusters
@@ -1449,6 +1451,14 @@ function App() {
                     <span className="toggle-icon">⚫</span>
                   </label>
                   {/* Checkbox to toggle Simulation Box */}
+                  <label className="icon-toggle" title="Show Backdrop Planes">
+                    <input
+                      type="checkbox"
+                      checked={showBackdropPlanes}
+                      onChange={(e) => setShowBackdropPlanes(e.target.checked)}
+                    />
+                    <span className="toggle-icon">🗂️</span>
+                  </label>
                   <label className="icon-toggle" title="Show Simulation Box">
                     <input
                       type="checkbox"

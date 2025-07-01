@@ -64,6 +64,7 @@ const ParticleScene = ({
   setSelectedParticles,
   onSceneReady,
   showSimulationBox,
+  showBackdropPlanes,
   showPatches,
   colorScheme,
   highlightedClusters,
@@ -83,6 +84,7 @@ const ParticleScene = ({
         setSelectedParticles={setSelectedParticles}
         onSceneReady={onSceneReady}
         showSimulationBox={showSimulationBox}
+        showBackdropPlanes={showBackdropPlanes}
         showPatches={showPatches}
         colorScheme={colorScheme}
         highlightedClusters={highlightedClusters}
@@ -99,6 +101,7 @@ function SceneContent({
   setSelectedParticles,
   onSceneReady,
   showSimulationBox,
+  showBackdropPlanes,
   showPatches,
   colorScheme,
   highlightedClusters,
@@ -217,6 +220,56 @@ function SceneContent({
           <boxGeometry args={boxSize} />
           <meshBasicMaterial color="gray" wireframe />
         </mesh>
+      )}
+
+      {/* Render backdrop planes conditionally */}
+      {showBackdropPlanes && (
+        <>
+          {/* XY plane at z=0 (back) */}
+          <mesh position={[0, 0, -boxSize[2] / 2]} rotation={[0, 0, 0]}>
+            <planeGeometry args={[boxSize[0], boxSize[1]]} />
+            <meshStandardMaterial 
+              color="#808080" 
+              transparent 
+              opacity={0.7} 
+              side={THREE.DoubleSide}
+              depthWrite={false}
+              metalness={0.2}
+              roughness={0.1}
+              envMapIntensity={1.0}
+            />
+          </mesh>
+          
+          {/* XZ plane at y=0 (bottom) */}
+          <mesh position={[0, -boxSize[1] / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[boxSize[0], boxSize[2]]} />
+            <meshStandardMaterial 
+              color="#808080" 
+              transparent 
+              opacity={0.7} 
+              side={THREE.DoubleSide}
+              depthWrite={false}
+              metalness={0.2}
+              roughness={0.1}
+              envMapIntensity={1.0}
+            />
+          </mesh>
+          
+          {/* YZ plane at x=0 (left) */}
+          <mesh position={[-boxSize[0] / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <planeGeometry args={[boxSize[2], boxSize[1]]} />
+            <meshStandardMaterial 
+              color="#808080" 
+              transparent 
+              opacity={0.7} 
+              side={THREE.DoubleSide}
+              depthWrite={false}
+              metalness={0.2}
+              roughness={0.1}
+              envMapIntensity={1.0}
+            />
+          </mesh>
+        </>
       )}
 
       <Particles
