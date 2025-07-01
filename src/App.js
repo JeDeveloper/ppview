@@ -898,6 +898,25 @@ function App() {
     });
   };
 
+  // Function to apply only periodic wrapping without re-centering
+  const applyPeriodicWrapping = (positions, boxSize) => {
+    const coordInBox = (coord, boxDim) => {
+      // Wrap coordinate to be within [0, boxDim]
+      while (coord < 0) coord += boxDim;
+      while (coord >= boxDim) coord -= boxDim;
+      return coord;
+    };
+
+    return positions.map(({ x, y, z, ...rest }) => {
+      return {
+        x: coordInBox(x, boxSize[0]),
+        y: coordInBox(y, boxSize[1]),
+        z: coordInBox(z, boxSize[2]),
+        ...rest,
+      };
+    });
+  };
+
   const handleSliderChange = (e) => {
     const newIndex = parseInt(e.target.value, 10);
     setCurrentConfigIndex(newIndex);
@@ -980,15 +999,17 @@ function App() {
           newPos[axis] = pos[axis] + delta;
           return newPos;
         });
-        // Apply periodic boundaries
-        const adjustedPositions = applyPeriodicBoundary(
+        // Apply only periodic wrapping without re-centering
+        const adjustedPositions = applyPeriodicWrapping(
           shiftedPositions,
           currentBoxSize,
         );
         return adjustedPositions;
       });
+      // Trigger re-render when translation happens
+      setTimeout(invalidateScene, 0);
     },
-    [currentBoxSize],
+    [currentBoxSize, invalidateScene],
   );
 
   // Function to export the scene as GLTF
@@ -1313,31 +1334,36 @@ function App() {
   // useEffect to handle key presses
   useEffect(() => {
     const handleKeyDown = (event) => {
-      switch (event.key) {
-        case "q":
-          shiftPositions("x", 1);
-          break;
-        case "a":
-          shiftPositions("x", -1);
-          break;
-        case "w":
-          shiftPositions("y", 1);
-          break;
-        case "s":
-          shiftPositions("y", -1);
-          break;
-        case "e":
-          shiftPositions("z", 1);
-          break;
-        case "d":
-          shiftPositions("z", -1);
-          break;
-        case "p":
-        case "P":
-          takeScreenshot();
-          break;
-        default:
-          break;
+      try {
+        switch (event.key) {
+          case "q":
+            shiftPositions("x", 1);
+            break;
+          case "a":
+            shiftPositions("x", -1);
+            break;
+          case "w":
+            shiftPositions("y", 1);
+            break;
+          case "s":
+            shiftPositions("y", -1);
+            break;
+          case "e":
+            shiftPositions("z", 1);
+            break;
+          case "d":
+            shiftPositions("z", -1);
+            break;
+          case "p":
+          case "P":
+            takeScreenshot();
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        console.warn('Error in key handler:', error);
+        // Don't propagate the error to avoid blocking the application
       }
     };
 
