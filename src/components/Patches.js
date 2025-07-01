@@ -6,8 +6,7 @@ import { getColorForPatchID } from '../utils/colorUtils';
 
 function Patches({ particles, patchPositions, patchIDs, boxSize }) {
   const meshRef = useRef();
-  const totalPatches = particles.length * patchPositions.length;
-
+  
   // Adjust patch radius as needed
   const patchRadius = 0.3;
 
@@ -18,9 +17,16 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
     metalness: 0.2,
     roughness: 0.8
   }), []);
+  
+  // Check if we have valid patch data
+  const hasValidPatchData = particles && patchPositions && patchIDs && 
+      particles.length > 0 && patchPositions.length > 0 && 
+      patchIDs.length > 0 && patchPositions.length === patchIDs.length;
+      
+  const totalPatches = hasValidPatchData ? particles.length * patchPositions.length : 0;
 
   useEffect(() => {
-    if (meshRef.current) {
+    if (meshRef.current && hasValidPatchData) {
       const mesh = meshRef.current;
       const dummy = new THREE.Object3D();
       const colors = [];
@@ -44,6 +50,11 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
         for (let j = 0; j < patchPositions.length; j++) {
           const patchOffset = patchPositions[j];
           const patchID = patchIDs[j]; // Get patch ID
+          
+          // Skip if patch data is invalid
+          if (!patchOffset || patchID === undefined || patchID === null) {
+            continue;
+          }
 
           // Compute the patch position
           const localPatchPosition = new THREE.Vector3(
@@ -124,7 +135,12 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
         mesh.material.needsUpdate = true;
       }
     }
-  }, [particles, patchPositions, patchIDs, boxSize, patchRadius]);
+  }, [particles, patchPositions, patchIDs, boxSize, patchRadius, hasValidPatchData]);
+
+  // Return null if no valid patch data
+  if (!hasValidPatchData) {
+    return null;
+  }
 
   return (
     <instancedMesh ref={meshRef} args={[geometry, material, totalPatches]} />

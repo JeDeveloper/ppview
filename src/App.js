@@ -6,8 +6,69 @@ import ParticleScene from "./components/ParticleScene";
 import PatchLegend from "./components/PatchLegend";
 import ParticleLegend from "./components/ParticleLegend";
 import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay"; // Import the new component
-
+import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import "./styles.css";
+
+// Helper function for fallback trajectory file prioritization
+function selectFallbackTrajectoryFile(trajectoryFiles) {
+  if (trajectoryFiles.length === 1) {
+    return trajectoryFiles[0];
+  }
+
+  console.log(`Found ${trajectoryFiles.length} potential trajectory files in fallback, applying prioritization...`);
+  
+  // Define priority keywords in order of preference (same as in fileTypeDetector)
+  const priorityKeywords = [
+    { keywords: ['traj'], priority: 1, name: 'trajectory' },
+    { keywords: ['last'], priority: 2, name: 'last configuration' },
+    { keywords: ['init'], priority: 3, name: 'initial configuration' },
+    { keywords: ['conf'], priority: 4, name: 'configuration' }
+  ];
+
+  // Score each file based on filename
+  const scoredFiles = trajectoryFiles.map(file => {
+    const fileName = file.name.toLowerCase();
+    let priority = 999; // Default low priority
+    let matchedType = 'other';
+    
+    // Check for priority keywords
+    for (const { keywords, priority: keywordPriority, name } of priorityKeywords) {
+      if (keywords.some(keyword => fileName.includes(keyword))) {
+        priority = keywordPriority;
+        matchedType = name;
+        break;
+      }
+    }
+    
+    return {
+      file,
+      priority,
+      matchedType,
+      fileName
+    };
+  });
+
+  // Sort by priority (lower number = higher priority)
+  scoredFiles.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    // If same priority, prefer alphabetically first
+    return a.fileName.localeCompare(b.fileName);
+  });
+
+  const selectedFile = scoredFiles[0];
+  console.log(`Selected fallback trajectory file: ${selectedFile.fileName} (type: ${selectedFile.matchedType})`);
+  
+  // Log the prioritization results
+  console.log('Fallback trajectory file prioritization:');
+  scoredFiles.forEach((scored, index) => {
+    const status = index === 0 ? '✓ SELECTED' : '  skipped';
+    console.log(`  ${status}: ${scored.fileName} (${scored.matchedType}, priority: ${scored.priority})`);
+  });
+
+  return selectedFile.file;
+}
 
 function App() {
   const [positions, setPositions] = useState([]);
@@ -36,6 +97,13 @@ function App() {
 
   // State to store the scene reference for GLTF export
   const [sceneRef, setSceneRef] = useState(null);
+  
+  // State for trajectory playback
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(500); // milliseconds between frames
+  const [isSpeedPopupVisible, setIsSpeedPopupVisible] = useState(false);
+  const playbackIntervalRef = useRef(null);
+  const speedPopupRef = useRef(null);
   
   // Function to trigger scene re-render when needed
   const invalidateScene = useCallback(() => {
@@ -81,7 +149,6 @@ function App() {
           link.click();
           document.body.removeChild(link);
           
-          console.log('Screenshot saved successfully');
         } catch (error) {
           console.error('Error capturing screenshot:', error);
           alert('Failed to capture screenshot - try again');
@@ -106,53 +173,99 @@ function App() {
     // Set loading state to true before indexing
     setIsLoading(true);
 
-    const fileMap = new Map();
+    try {
+      // Analyze file types dynamically based on content
+      console.log("Analyzing file types...");
+      const filesWithTypes = await analyzeFiles(files);
+      const categorizedFiles = categorizeFiles(filesWithTypes);
+      
+      console.log("File analysis results:", categorizedFiles);
 
-    // Store all files in fileMap, normalizing file names
-    files.forEach((file) => {
-      fileMap.set(file.name.trim(), file);
-    });
+      // Create file map for compatibility with existing code
+      const fileMap = new Map();
+      files.forEach((file) => {
+        fileMap.set(file.name.trim(), file);
+      });
 
-    console.log("Files received:", Array.from(fileMap.keys()));
+      // Process topology file
+      if (categorizedFiles.topology) {
+        const topFile = categorizedFiles.topology.file;
+        const topContent = await topFile.text();
+        const parsedTopData = await parseTopFile(topContent, fileMap, categorizedFiles.topology.format);
+        setTopData(parsedTopData);
+        console.log(`Loaded ${categorizedFiles.topology.format} topology from ${topFile.name}`);
+      } else {
+        // Fallback: look for .top extension
+        const topFile = files.find((file) => file.name.endsWith(".top"));
+        if (topFile) {
+          const topContent = await topFile.text();
+          const parsedTopData = await parseTopFile(topContent, fileMap);
+          setTopData(parsedTopData);
+          console.log(`Loaded topology from ${topFile.name} (fallback detection)`);
+        } else {
+          alert("No topology file detected! Please ensure you have a valid topology file.");
+          setFilesDropped(false);
+          setIsLoading(false);
+          return;
+        }
+      }
 
-    // Process .top file
-    const topFile = files.find((file) => file.name.endsWith(".top"));
-    if (topFile) {
-      const topContent = await topFile.text();
-      const parsedTopData = await parseTopFile(topContent, fileMap);
-      setTopData(parsedTopData);
-    } else {
-      alert("Topology file (.top) is missing!");
-      // Reset filesDropped and isLoading
+      // Process trajectory file
+      if (categorizedFiles.trajectory) {
+        setTrajFile(categorizedFiles.trajectory);
+        console.log(`Detected trajectory file: ${categorizedFiles.trajectory.name}`);
+      } else {
+        // Fallback: look for common trajectory file patterns with prioritization
+        const fallbackTrajectoryFiles = files.filter(
+          (file) =>
+            file.name.includes("traj") ||
+            file.name.includes("conf") ||
+            file.name.includes("last") ||
+            file.name.includes("init") ||
+            file.name.endsWith(".dat")
+        );
+        
+        if (fallbackTrajectoryFiles.length > 0) {
+          // Apply same prioritization logic for fallback files
+          const selectedFile = selectFallbackTrajectoryFile(fallbackTrajectoryFiles);
+          setTrajFile(selectedFile);
+          console.log(`Using trajectory file: ${selectedFile.name} (fallback detection with prioritization)`);
+        } else {
+          alert("No trajectory file detected! Please ensure you have a valid trajectory file.");
+          setFilesDropped(false);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Build the trajectory index
+      const trajectoryFileToUse = categorizedFiles.trajectory || files.find(
+        (file) =>
+          file.name.includes("traj") ||
+          file.name.includes("conf") ||
+          file.name.includes("last") ||
+          file.name.endsWith(".dat")
+      );
+      
+      if (trajectoryFileToUse) {
+        const index = await buildTrajIndex(trajectoryFileToUse);
+        setConfigIndex(index);
+        setTotalConfigs(index.length);
+      }
+
+      // Report unknown files
+      if (categorizedFiles.unknown.length > 0) {
+        console.warn("Unknown file types detected:", categorizedFiles.unknown.map(f => f.name));
+      }
+
+      // Set loading state to false after indexing
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error processing files:", error);
+      alert("Error processing files. Please check the console for details.");
       setFilesDropped(false);
       setIsLoading(false);
-      return;
     }
-
-    // Get trajectory file
-    const trajectoryFile = files.find(
-      (file) =>
-        file.name.includes("traj") ||
-        file.name.includes("conf") ||
-        file.name.includes("last"),
-    );
-    if (trajectoryFile) {
-      setTrajFile(trajectoryFile);
-    } else {
-      alert("Trajectory file (e.g., traj.dat) is missing!");
-      // Reset filesDropped and isLoading
-      setFilesDropped(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Build the index
-    const index = await buildTrajIndex(trajectoryFile);
-    setConfigIndex(index);
-    setTotalConfigs(index.length);
-
-    // Set loading state to false after indexing
-    setIsLoading(false);
   };
 
   // Load configuration when topData, trajFile, and configIndex are available
@@ -265,8 +378,6 @@ function App() {
           rotationMatrix = {
             elements: matrix.elements.slice(), // Clone the elements array
           };
-
-          console.log(`Rotation Matrix for Particle ${index}:`, rotationMatrix);
         }
 
         return {
@@ -334,11 +445,19 @@ function App() {
   };
 
   // Function to parse the .top file (supports both Lorenzo's and Flavio's formats)
-  const parseTopFile = async (content, fileMap) => {
+  const parseTopFile = async (content, fileMap, detectedFormat = null) => {
     const lines = content.trim().split("\n");
 
-    // Determine if the format is Flavio's or Lorenzo's based on header and content
-    let isFlavioFormat = !lines[1].includes(".");
+    // Use detected format if provided, otherwise fall back to original detection logic
+    let isFlavioFormat;
+    if (detectedFormat) {
+      isFlavioFormat = detectedFormat === 'flavio';
+      console.log(`Using detected topology format: ${detectedFormat}`);
+    } else {
+      // Original detection logic as fallback
+      isFlavioFormat = !lines[1].includes(".");
+      console.log(`Using fallback topology format detection: ${isFlavioFormat ? 'flavio' : 'lorenzo'}`);
+    }
 
     if (isFlavioFormat) {
       // Parse Flavio's topology
@@ -373,29 +492,34 @@ function App() {
         count: count,
         cumulativeCount: cumulativeCount,
         patchCount: patchCount,
-        patches: patches,
+        patches: patches || [], // Ensure patches is always an array
         fileName,
         patchPositions: [],
       };
 
-      console.log(`Processing particle type ${i}:`, particleType);
 
-      // Read the patch file if provided
-      if (fileName) {
+      // Read the patch file if provided and if patches are specified
+      if (fileName && patchCount > 0 && patches.length > 0) {
         if (patchFileCache.has(fileName)) {
           // Use cached patch positions
           particleType.patchPositions = patchFileCache.get(fileName);
         } else if (fileMap.has(fileName)) {
-          const patchFile = fileMap.get(fileName);
-          const patchContent = await patchFile.text();
-          const patchPositions = parsePatchFile(patchContent);
-          particleType.patchPositions = patchPositions;
-          patchFileCache.set(fileName, patchPositions);
+          try {
+            const patchFile = fileMap.get(fileName);
+            const patchContent = await patchFile.text();
+            const patchPositions = parsePatchFile(patchContent);
+            if (patchPositions && patchPositions.length > 0) {
+              particleType.patchPositions = patchPositions;
+              patchFileCache.set(fileName, patchPositions);
+            }
+          } catch (error) {
+            console.warn(`Error reading patch file '${fileName}':`, error);
+            particleType.patchPositions = [];
+          }
         } else {
           console.warn(
             `Patch file '${fileName}' not found for particle type ${i}`,
           );
-          console.log("Available files:", Array.from(fileMap.keys()));
         }
       }
 
@@ -474,8 +598,8 @@ function App() {
       particleTypes.push({
         count,
         typeIndex: Number(typeIndex),
-        patches,
-        patchPositions,
+        patches: patches || [], // Ensure patches is always an array
+        patchPositions: patchPositions || [], // Ensure patchPositions is always an array
       });
     });
 
@@ -571,13 +695,26 @@ function App() {
 
   // Function to parse patch files (for Lorenzo's format)
   const parsePatchFile = (content) => {
-    const lines = content.trim().split("\n");
-    const positions = lines.map((line) => {
-      const tokens = line.trim().split(/\s+/).map(Number);
-      const [x, y, z] = tokens;
-      return { x, y, z };
-    });
-    return positions;
+    try {
+      if (!content || content.trim() === '') {
+        return [];
+      }
+      
+      const lines = content.trim().split("\n").filter(line => line.trim() !== '');
+      const positions = lines.map((line) => {
+        const tokens = line.trim().split(/\s+/).map(Number);
+        if (tokens.length >= 3 && !tokens.some(isNaN)) {
+          const [x, y, z] = tokens;
+          return { x, y, z };
+        }
+        return null;
+      }).filter(pos => pos !== null);
+      
+      return positions;
+    } catch (error) {
+      console.error('Error parsing patch file:', error);
+      return [];
+    }
   };
 
   // Helper function to apply periodic boundary conditions
@@ -599,6 +736,72 @@ function App() {
     // Trigger re-render when configuration changes
     setTimeout(invalidateScene, 0);
   };
+
+  // Function to toggle trajectory playback
+  const togglePlayback = useCallback(() => {
+    if (isPlaying) {
+      // Stop playback
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = null;
+      }
+      setIsPlaying(false);
+    } else {
+      // Start playback
+      setIsPlaying(true);
+      playbackIntervalRef.current = setInterval(() => {
+        setCurrentConfigIndex(prevIndex => {
+          const nextIndex = prevIndex + 1;
+          if (nextIndex >= totalConfigs) {
+            // Reached the end, stop playback
+            if (playbackIntervalRef.current) {
+              clearInterval(playbackIntervalRef.current);
+              playbackIntervalRef.current = null;
+            }
+            setIsPlaying(false);
+            return prevIndex; // Stay at the last frame
+          }
+          return nextIndex;
+        });
+      }, playbackSpeed);
+    }
+  }, [isPlaying, playbackSpeed, totalConfigs]);
+
+  // Function to reset trajectory to beginning
+  const resetTrajectory = useCallback(() => {
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+    }
+    setIsPlaying(false);
+    setCurrentConfigIndex(0);
+  }, []);
+
+  // Cleanup playback interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Handle click outside speed popup
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isSpeedPopupVisible && speedPopupRef.current && !speedPopupRef.current.contains(event.target)) {
+        setIsSpeedPopupVisible(false);
+      }
+    };
+
+    if (isSpeedPopupVisible) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSpeedPopupVisible]);
 
   // Function to shift positions along an axis
   const shiftPositions = useCallback(
@@ -833,8 +1036,6 @@ function App() {
         // Clean up
         URL.revokeObjectURL(url);
         
-        const boxText = showSimulationBox ? 'with simulation box' : 'without simulation box';
-        console.log(`Exported ${positions.length} particles grouped by ${particlesByType.size} types ${boxText} to GLTF`);
       },
       (error) => {
         console.error('Error exporting GLTF:', error);
@@ -912,57 +1113,117 @@ function App() {
           </div>
           {isControlsVisible && (
             <div className="controls">
-              <input
-                type="range"
-                min="0"
-                max={totalConfigs - 1}
-                value={currentConfigIndex}
-                onChange={handleSliderChange}
-              />
-              <div className="config-time-section">
-                <div className="config-text">
-                  Configuration: {currentConfigIndex + 1} / {totalConfigs}
+              {/* First row: Trajectory controls and buttons */}
+              <div className="controls-top-row">
+                <div className="playback-controls">
+                  <button 
+                    className="playback-button" 
+                    onClick={togglePlayback}
+                    title={isPlaying ? "Pause" : "Play"}
+                  >
+                    {isPlaying ? "⏸️" : "▶️"}
+                  </button>
+                  <button 
+                    className="playback-button" 
+                    onClick={resetTrajectory}
+                    title="Reset to beginning"
+                  >
+                    ⏮️
+                  </button>
+                  <div className="speed-control">
+                    <button 
+                      className="speed-button"
+                      onClick={() => setIsSpeedPopupVisible(!isSpeedPopupVisible)}
+                      title="Adjust playback speed"
+                    >
+                      ⚡ {(1000/playbackSpeed).toFixed(1)} fps
+                    </button>
+                    {isSpeedPopupVisible && (
+                      <div className="speed-popup" ref={speedPopupRef}>
+                        <div className="speed-popup-content">
+                          <label htmlFor="speed-slider" className="speed-label">Speed:</label>
+                          <input
+                            id="speed-slider"
+                            type="range"
+                            min="50"
+                            max="2000"
+                            step="50"
+                            value={playbackSpeed}
+                            onChange={(e) => setPlaybackSpeed(parseInt(e.target.value))}
+                            className="speed-slider"
+                          />
+                          <span className="speed-display">{(1000/playbackSpeed).toFixed(1)} fps</span>
+                          <button 
+                            className="speed-close"
+                            onClick={() => setIsSpeedPopupVisible(false)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="time-text">Time: {currentTime.toLocaleString()}</div>
+                
+                {/* Icon toggles section */}
+                <div className="icon-toggles">
+                  {/* Checkbox to toggle Patch legend */}
+                  <label className="icon-toggle" title="Show Patch Legend">
+                    <input
+                      type="checkbox"
+                      checked={showPatchLegend}
+                      onChange={(e) => setShowPatchLegend(e.target.checked)}
+                    />
+                    <span className="toggle-icon">🏷️</span>
+                  </label>
+                  {/* Checkbox to toggle Particle legend */}
+                  <label className="icon-toggle" title="Show Particle Legend">
+                    <input
+                      type="checkbox"
+                      checked={showParticleLegend}
+                      onChange={(e) => setShowParticleLegend(e.target.checked)}
+                    />
+                    <span className="toggle-icon">⚫</span>
+                  </label>
+                  {/* Checkbox to toggle Simulation Box */}
+                  <label className="icon-toggle" title="Show Simulation Box">
+                    <input
+                      type="checkbox"
+                      checked={showSimulationBox}
+                      onChange={(e) => setShowSimulationBox(e.target.checked)}
+                    />
+                    <span className="toggle-icon">📦</span>
+                  </label>
+                </div>
+                
+                {/* Action buttons */}
+                <div className="action-buttons">
+                  <button className="screenshot-button" onClick={takeScreenshot}>
+                    📸 Take Screenshot (P)
+                  </button>
+                  <button className="export-button" onClick={exportGLTF}>
+                    📁 Export GLTF
+                  </button>
+                </div>
               </div>
-              {/* Icon toggles section */}
-              <div className="icon-toggles">
-                {/* Checkbox to toggle Patch legend */}
-                <label className="icon-toggle" title="Show Patch Legend">
-                  <input
-                    type="checkbox"
-                    checked={showPatchLegend}
-                    onChange={(e) => setShowPatchLegend(e.target.checked)}
-                  />
-                  <span className="toggle-icon">🏷️</span>
-                </label>
-                {/* Checkbox to toggle Particle legend */}
-                <label className="icon-toggle" title="Show Particle Legend">
-                  <input
-                    type="checkbox"
-                    checked={showParticleLegend}
-                    onChange={(e) => setShowParticleLegend(e.target.checked)}
-                  />
-                  <span className="toggle-icon">⚫</span>
-                </label>
-                {/* Checkbox to toggle Simulation Box */}
-                <label className="icon-toggle" title="Show Simulation Box">
-                  <input
-                    type="checkbox"
-                    checked={showSimulationBox}
-                    onChange={(e) => setShowSimulationBox(e.target.checked)}
-                  />
-                  <span className="toggle-icon">📦</span>
-                </label>
+              
+              {/* Second row: Trajectory slider and info */}
+              <div className="controls-bottom-row">
+                <input
+                  type="range"
+                  min="0"
+                  max={totalConfigs - 1}
+                  value={currentConfigIndex}
+                  onChange={handleSliderChange}
+                  className="trajectory-slider"
+                />
+                <div className="config-time-info">
+                  <div className="config-text">
+                    Configuration: {currentConfigIndex + 1} / {totalConfigs}
+                  </div>
+                  <div className="time-text">Time: {currentTime.toLocaleString()}</div>
+                </div>
               </div>
-              {/* Screenshot Button */}
-              <button className="screenshot-button" onClick={takeScreenshot}>
-                📸 Take Screenshot (P)
-              </button>
-              {/* GLTF Export Button */}
-              <button className="export-button" onClick={exportGLTF}>
-                📁 Export GLTF
-              </button>
             </div>
           )}
         </>

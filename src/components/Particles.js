@@ -177,22 +177,26 @@ function Particles({
 
       {Array.from(particlesByType.values()).map(
         ({ particleType, particles }, idx) => {
+          // Check if this particle type has valid patch data
           if (
+            particleType &&
             particleType.patchPositions &&
-            particleType.patchPositions.length > 0
+            particleType.patchPositions.length > 0 &&
+            particleType.patches &&
+            particleType.patches.length > 0 &&
+            particleType.patches.length === particleType.patchPositions.length
           ) {
             return (
               <Patches
-                key={idx}
+                key={`patches-${particleType.typeIndex}-${idx}`}
                 particles={particles}
                 patchPositions={particleType.patchPositions}
                 patchIDs={particleType.patches}
                 boxSize={boxSize}
               />
             );
-          } else {
-            return null;
           }
+          return null;
         },
       )}
     </>
