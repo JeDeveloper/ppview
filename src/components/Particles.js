@@ -24,8 +24,8 @@ function Particles({
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        metalness: 0.5,
-        roughness: 0.5,
+        metalness: 0.0,
+        roughness: 0.8,
       }),
     [],
   );

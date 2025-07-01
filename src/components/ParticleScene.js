@@ -118,8 +118,40 @@ function SceneContent({
         enableDamping={true}
         dampingFactor={0.05}
       />
-      <ambientLight intensity={0.5} />
-      <Environment preset="sunset" />
+      {/* Main ambient light - reduced intensity for better contrast */}
+      <ambientLight intensity={0.3} />
+      
+      {/* Key light - main directional light for primary illumination */}
+      <directionalLight 
+        position={[10, 10, 5]} 
+        intensity={1.2} 
+        color="#ffffff"
+        castShadow={false}
+      />
+      
+      {/* Fill light - softer directional light from opposite side */}
+      <directionalLight 
+        position={[-5, -5, -3]} 
+        intensity={0.4} 
+        color="#ffffff"
+        castShadow={false}
+      />
+      
+      {/* Rim light - creates edge definition and separation */}
+      <directionalLight 
+        position={[0, 0, -10]} 
+        intensity={0.6} 
+        color="#e6f3ff"
+        castShadow={false}
+      />
+      
+      {/* Top light - subtle illumination from above */}
+      <directionalLight 
+        position={[0, 15, 0]} 
+        intensity={0.3} 
+        color="#fff5e6"
+        castShadow={false}
+      />
 
       {/* Render the simulation box conditionally */}
       {showSimulationBox && (
