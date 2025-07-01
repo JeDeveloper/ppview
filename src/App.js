@@ -1004,9 +1004,25 @@ function App() {
     // Create a new scene for export
     const exportScene = new THREE.Scene();
     
-    // Add ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    // Add improved lighting setup (matching the scene)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
     exportScene.add(ambientLight);
+    
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    keyLight.position.set(10, 10, 5);
+    exportScene.add(keyLight);
+    
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    fillLight.position.set(-5, -5, -3);
+    exportScene.add(fillLight);
+    
+    const rimLight = new THREE.DirectionalLight(0xe6f3ff, 0.6);
+    rimLight.position.set(0, 0, -10);
+    exportScene.add(rimLight);
+    
+    const topLight = new THREE.DirectionalLight(0xfff5e6, 0.3);
+    topLight.position.set(0, 15, 0);
+    exportScene.add(topLight);
     
     // Add simulation box only if visible
     if (showSimulationBox) {
@@ -1020,42 +1036,55 @@ function App() {
       exportScene.add(boxMesh);
     }
     
-    // Group particles by type for efficiency
-    const particlesByType = new Map();
+    // Separate particles into highlighted (selected clusters) and hidden (others)
+    const highlightedParticles = new Map(); // typeIndex -> particles
+    const hiddenParticles = new Map(); // typeIndex -> particles
     
     positions.forEach((pos, index) => {
       const typeIndex = pos.typeIndex;
-      if (!particlesByType.has(typeIndex)) {
-        particlesByType.set(typeIndex, []);
-      }
-      particlesByType.get(typeIndex).push({
+      const isHighlighted = highlightedClusters.has(index);
+      
+      const particleData = {
         position: {
           x: pos.x - currentBoxSize[0] / 2,
           y: pos.y - currentBoxSize[1] / 2,
           z: pos.z - currentBoxSize[2] / 2
         },
         index
-      });
+      };
+      
+      if (isHighlighted) {
+        if (!highlightedParticles.has(typeIndex)) {
+          highlightedParticles.set(typeIndex, []);
+        }
+        highlightedParticles.get(typeIndex).push(particleData);
+      } else {
+        if (!hiddenParticles.has(typeIndex)) {
+          hiddenParticles.set(typeIndex, []);
+        }
+        hiddenParticles.get(typeIndex).push(particleData);
+      }
     });
     
-    // Create optimized sphere geometry (lower poly for better performance)
-    const sphereGeometry = new THREE.SphereGeometry(0.5, 8, 6);
+    // Create sphere geometries for different representations
+    const fullSphereGeometry = new THREE.SphereGeometry(0.5, 8, 6); // Full detail for highlighted
+    const hiddenSphereGeometry = new THREE.SphereGeometry(0.15, 4, 3); // Smaller, lower detail for hidden
     
-    // Create instanced mesh for each particle type
-    particlesByType.forEach((particles, typeIndex) => {
+    // Create highlighted particles with full representation
+    highlightedParticles.forEach((particles, typeIndex) => {
       const colorIndex = typeIndex % particleColors.length;
       const particleColor = new THREE.Color(particleColors[colorIndex]);
       
-      // Create material for this particle type
+      // Full material for highlighted particles
       const material = new THREE.MeshStandardMaterial({
         color: particleColor,
-        metalness: 0.3,
-        roughness: 0.7,
+        metalness: 0.0,
+        roughness: 0.8,
       });
       
       // Create instanced mesh for this type
       const instancedMesh = new THREE.InstancedMesh(
-        sphereGeometry, 
+        fullSphereGeometry, 
         material, 
         particles.length
       );
@@ -1073,7 +1102,43 @@ function App() {
       });
       
       instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.name = `ParticleType_${typeIndex}`;
+      instancedMesh.name = `HighlightedParticles_Type_${typeIndex}`;
+      
+      exportScene.add(instancedMesh);
+    });
+    
+    // Create hidden particles with dimmed representation
+    hiddenParticles.forEach((particles, typeIndex) => {
+      // Create dimmed material for hidden particles
+      const dimmedMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333, // Dark gray color
+        metalness: 0.0,
+        roughness: 0.9,
+        transparent: true,
+        opacity: 0.3
+      });
+      
+      // Create instanced mesh for hidden particles
+      const instancedMesh = new THREE.InstancedMesh(
+        hiddenSphereGeometry, 
+        dimmedMaterial, 
+        particles.length
+      );
+      
+      // Set up instances
+      const dummy = new THREE.Object3D();
+      particles.forEach((particle, i) => {
+        dummy.position.set(
+          particle.position.x,
+          particle.position.y,
+          particle.position.z
+        );
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(i, dummy.matrix);
+      });
+      
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      instancedMesh.name = `HiddenParticles_Type_${typeIndex}`;
       
       exportScene.add(instancedMesh);
     });
@@ -1103,7 +1168,12 @@ function App() {
             // Group patches by patch ID for efficient instancing
             const patchesByID = new Map();
             
-            particlesOfThisType.forEach(({ particle }) => {
+            particlesOfThisType.forEach(({ particle, index }) => {
+              // Only include patches for highlighted particles
+              if (!highlightedClusters.has(index)) {
+                return; // Skip patches for hidden particles
+              }
+              
               const particlePosition = new THREE.Vector3(
                 particle.x - currentBoxSize[0] / 2,
                 particle.y - currentBoxSize[1] / 2,
@@ -1237,7 +1307,7 @@ function App() {
         embedImages: false
       }
     );
-  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, currentColorScheme, topData]);
+  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, currentColorScheme, topData, highlightedClusters]);
 
   // useEffect to handle key presses
   useEffect(() => {
