@@ -2,7 +2,7 @@ import React from 'react';
 import { getColorForPatchID } from '../utils/colorUtils';
 import './PatchLegend.css'; // Create corresponding CSS
 
-function PatchLegend({ patchIDs }) {
+function PatchLegend({ patchIDs, colorScheme = null }) {
   // Remove duplicates
   const uniquePatchIDs = [...new Set(patchIDs)];
 
@@ -14,7 +14,7 @@ function PatchLegend({ patchIDs }) {
           <li key={id}>
             <span
               className="color-box"
-              style={{ backgroundColor: getColorForPatchID(id).getStyle() }}
+              style={{ backgroundColor: getColorForPatchID(id, colorScheme).getStyle() }}
             ></span>
             <span>Patch ID: {id}</span>
           </li>

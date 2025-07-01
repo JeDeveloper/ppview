@@ -39,8 +39,10 @@ The color scheme feature allows users to select from multiple predefined color p
 - Fallback to "muted" scheme if localStorage is unavailable or corrupted
 
 #### Color Assignment
-- Particles are colored based on their type index: `color = scheme.colors[typeIndex % scheme.colors.length]`
-- This ensures all particle types get a color even if there are more types than colors in the scheme
+- **Particles** are colored based on their type index: `color = scheme.colors[typeIndex % scheme.colors.length]`
+- **Patches** use the same color scheme as particles: `color = scheme.colors[patchID % scheme.colors.length]`
+- This ensures consistent visual representation between Lorenzo and Flavio formats
+- All particle types and patches get a color even if there are more types than colors in the scheme
 
 #### Accessibility
 - The "Colorblind Friendly" scheme uses colors selected specifically for accessibility

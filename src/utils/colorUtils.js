@@ -15,8 +15,10 @@
 // src/utils/colorUtils.js
 
 import * as THREE from 'three';
+import { getParticleColors } from '../colors';
 
-const predefinedColors = [
+// Fallback predefined colors for backward compatibility
+const fallbackColors = [
   '#FF5733', // Patch ID 0
   '#33FF57', // Patch ID 1
   '#3357FF', // Patch ID 2
@@ -29,12 +31,22 @@ const predefinedColors = [
 ];
 
 /**
- * Generates a unique color for a given patch ID.
- * Uses a predefined palette and cycles through if necessary.
+ * Generates a unique color for a given patch ID using the specified color scheme.
+ * Uses the same color scheme as particles for consistency.
  * @param {number} patchID - The unique identifier for the patch.
+ * @param {string} colorScheme - The color scheme to use (optional).
  * @returns {THREE.Color} - The generated color.
  */
-export const getColorForPatchID = (patchID) => {
-  const colorHex = predefinedColors[patchID % predefinedColors.length];
-  return new THREE.Color(colorHex);
+export const getColorForPatchID = (patchID, colorScheme = null) => {
+  try {
+    // Get colors from the current color scheme
+    const colors = getParticleColors(colorScheme);
+    const colorHex = colors[patchID % colors.length];
+    return new THREE.Color(colorHex);
+  } catch (error) {
+    // Fallback to predefined colors if there's an issue
+    console.warn('Error getting color scheme, using fallback:', error);
+    const colorHex = fallbackColors[patchID % fallbackColors.length];
+    return new THREE.Color(colorHex);
+  }
 };

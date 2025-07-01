@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { getColorForPatchID } from '../utils/colorUtils';
 
-function Patches({ particles, patchPositions, patchIDs, boxSize }) {
+function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = null }) {
   const meshRef = useRef();
   
   // Patch cone dimensions
@@ -107,7 +107,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
           mesh.setMatrixAt(index, dummy.matrix);
 
           // Assign color based on patch ID
-          const color = getColorForPatchID(patchID);
+          const color = getColorForPatchID(patchID, colorScheme);
           colors.push(color.r, color.g, color.b);
 
       // Remove debugging logs for better performance
@@ -165,7 +165,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
         mesh.material.needsUpdate = true;
       }
     }
-  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData]);
+  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
 
   // Return null if no valid patch data
   if (!hasValidPatchData) {

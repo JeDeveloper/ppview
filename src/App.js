@@ -1103,7 +1103,7 @@ function App() {
             patchGeometry.translate(0, -0.2, 0); // Move cone so tip is at origin (inverted)
             
             patchesByID.forEach((patches, patchID) => {
-              const patchColor = getColorForPatchID(patchID);
+              const patchColor = getColorForPatchID(patchID, currentColorScheme);
               
               const patchMaterial = new THREE.MeshStandardMaterial({
                 color: patchColor,
@@ -1178,7 +1178,7 @@ function App() {
         embedImages: false
       }
     );
-  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox]);
+  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, currentColorScheme, topData]);
 
   // useEffect to handle key presses
   useEffect(() => {
@@ -1373,6 +1373,7 @@ function App() {
       {topData && showPatchLegend && !isLoading && (
         <PatchLegend
           patchIDs={topData.particleTypes.flatMap((type) => type.patches)}
+          colorScheme={currentColorScheme}
         />
       )}
       {/* Conditionally render the ParticleLegend component */}

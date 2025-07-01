@@ -214,6 +214,7 @@ function Particles({
                 patchPositions={particleType.patchPositions}
                 patchIDs={particleType.patches}
                 boxSize={boxSize}
+                colorScheme={colorScheme}
               />
             );
           }
