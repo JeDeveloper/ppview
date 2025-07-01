@@ -5,6 +5,58 @@ import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 
+// Camera-following area light component for molecular render look
+function CameraFollowingLight() {
+  const lightRef = useRef();
+  const { camera } = useThree();
+  
+  useFrame(() => {
+    if (lightRef.current && camera) {
+      // Position the light behind and above the camera
+      const cameraDirection = new THREE.Vector3();
+      camera.getWorldDirection(cameraDirection);
+      
+      // Calculate position behind and above camera
+      const lightPosition = camera.position.clone()
+        .add(cameraDirection.clone().multiplyScalar(-5)) // Behind camera
+        .add(new THREE.Vector3(0, 3, 0)); // Above camera
+      
+      lightRef.current.position.copy(lightPosition);
+      
+      // Make the light point towards where the camera is looking
+      const target = camera.position.clone().add(cameraDirection.multiplyScalar(10));
+      lightRef.current.target.position.copy(target);
+      lightRef.current.target.updateMatrixWorld();
+    }
+  });
+  
+  return (
+    <>
+      <spotLight
+        ref={lightRef}
+        intensity={2.5}
+        angle={Math.PI / 3} // 60 degree cone
+        penumbra={0.2} // Soft edges
+        distance={100}
+        decay={2}
+        color="#ffffff"
+        castShadow={true}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-near={0.1}
+        shadow-camera-far={100}
+        shadow-bias={-0.0001}
+      />
+      {/* Helper to visualize light target */}
+      <object3D ref={(ref) => {
+        if (ref && lightRef.current) {
+          lightRef.current.target = ref;
+        }
+      }} />
+    </>
+  );
+}
+
 const ParticleScene = ({
   positions,
   boxSize,
@@ -118,38 +170,44 @@ function SceneContent({
         enableDamping={true}
         dampingFactor={0.05}
       />
-      {/* Main ambient light - reduced intensity for better contrast */}
-      <ambientLight intensity={0.3} />
+      {/* Molecular render lighting setup */}
       
-      {/* Key light - main directional light for primary illumination */}
+      {/* Very low ambient light for dramatic shadows */}
+      <ambientLight intensity={0.15} color="#f0f0f0" />
+      
+      {/* Camera-following area light */}
+      <CameraFollowingLight />
+      
+      {/* Strong key light for primary illumination and shadows */}
       <directionalLight 
-        position={[10, 10, 5]} 
-        intensity={1.2} 
+        position={[15, 15, 10]} 
+        intensity={2.0} 
         color="#ffffff"
-        castShadow={false}
+        castShadow={true}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-near={0.5}
+        shadow-camera-far={500}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
+        shadow-bias={-0.0001}
       />
       
-      {/* Fill light - softer directional light from opposite side */}
+      {/* Secondary rim light for edge definition */}
       <directionalLight 
-        position={[-5, -5, -3]} 
-        intensity={0.4} 
-        color="#ffffff"
-        castShadow={false}
-      />
-      
-      {/* Rim light - creates edge definition and separation */}
-      <directionalLight 
-        position={[0, 0, -10]} 
-        intensity={0.6} 
+        position={[-8, 5, -12]} 
+        intensity={0.8} 
         color="#e6f3ff"
         castShadow={false}
       />
       
-      {/* Top light - subtle illumination from above */}
+      {/* Subtle fill light to prevent complete darkness in shadows */}
       <directionalLight 
-        position={[0, 15, 0]} 
+        position={[-5, -8, 5]} 
         intensity={0.3} 
-        color="#fff5e6"
+        color="#fff8e6"
         castShadow={false}
       />
 

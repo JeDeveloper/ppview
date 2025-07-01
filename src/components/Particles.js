@@ -290,7 +290,7 @@ function Particles({
 
   return (
     <>
-      <instancedMesh ref={meshRef} args={[geometry, material, count]}>
+      <instancedMesh ref={meshRef} args={[geometry, material, count]} castShadow receiveShadow>
         {/* This instancedMesh renders the particles */}
       </instancedMesh>
 

@@ -174,7 +174,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
   }
 
   return (
-    <instancedMesh ref={meshRef} args={[geometry, material, totalPatches]} />
+    <instancedMesh ref={meshRef} args={[geometry, material, totalPatches]} castShadow receiveShadow />
   );
 }
 
