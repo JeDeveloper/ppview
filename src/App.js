@@ -919,37 +919,42 @@ function App() {
                 value={currentConfigIndex}
                 onChange={handleSliderChange}
               />
-              <div>
-                Configuration: {currentConfigIndex + 1} / {totalConfigs}
+              <div className="config-time-section">
+                <div className="config-text">
+                  Configuration: {currentConfigIndex + 1} / {totalConfigs}
+                </div>
+                <div className="time-text">Time: {currentTime.toLocaleString()}</div>
               </div>
-              <div>Time: {currentTime.toLocaleString()}</div>
-              {/* Checkbox to toggle Patch legend */}
-              <label className="legend-toggle">
-                <input
-                  type="checkbox"
-                  checked={showPatchLegend}
-                  onChange={(e) => setShowPatchLegend(e.target.checked)}
-                />
-                Show Patch Legend
-              </label>
-              {/* Checkbox to toggle Particle legend */}
-              <label className="legend-toggle">
-                <input
-                  type="checkbox"
-                  checked={showParticleLegend}
-                  onChange={(e) => setShowParticleLegend(e.target.checked)}
-                />
-                Show Particle Legend
-              </label>
-              {/* Checkbox to toggle Simulation Box */}
-              <label className="legend-toggle">
-                <input
-                  type="checkbox"
-                  checked={showSimulationBox}
-                  onChange={(e) => setShowSimulationBox(e.target.checked)}
-                />
-                Show Simulation Box
-              </label>
+              {/* Icon toggles section */}
+              <div className="icon-toggles">
+                {/* Checkbox to toggle Patch legend */}
+                <label className="icon-toggle" title="Show Patch Legend">
+                  <input
+                    type="checkbox"
+                    checked={showPatchLegend}
+                    onChange={(e) => setShowPatchLegend(e.target.checked)}
+                  />
+                  <span className="toggle-icon">🏷️</span>
+                </label>
+                {/* Checkbox to toggle Particle legend */}
+                <label className="icon-toggle" title="Show Particle Legend">
+                  <input
+                    type="checkbox"
+                    checked={showParticleLegend}
+                    onChange={(e) => setShowParticleLegend(e.target.checked)}
+                  />
+                  <span className="toggle-icon">⚫</span>
+                </label>
+                {/* Checkbox to toggle Simulation Box */}
+                <label className="icon-toggle" title="Show Simulation Box">
+                  <input
+                    type="checkbox"
+                    checked={showSimulationBox}
+                    onChange={(e) => setShowSimulationBox(e.target.checked)}
+                  />
+                  <span className="toggle-icon">📦</span>
+                </label>
+              </div>
               {/* Screenshot Button */}
               <button className="screenshot-button" onClick={takeScreenshot}>
                 📸 Take Screenshot (P)
