@@ -569,13 +569,26 @@ function App() {
       // Proceed without particlesData
     }
 
-    // Check for patches.txt file
-    const patchesTxtFile = fileMap.get("patches.txt");
+    // Check for patches.txt file or .patch.txt files
+    let patchesTxtFile = fileMap.get("patches.txt");
+    
+    // If patches.txt not found, look for .patch.txt files
+    if (!patchesTxtFile) {
+      // Find any file with .patch.txt extension
+      for (const [fileName, file] of fileMap.entries()) {
+        if (fileName.toLowerCase().endsWith('.patch.txt')) {
+          patchesTxtFile = file;
+          console.log(`Using ${fileName} as patches file for Flavio format`);
+          break;
+        }
+      }
+    }
+    
     if (patchesTxtFile) {
       const patchesTxtContent = await patchesTxtFile.text();
       patchesData = parsePatchesTxt(patchesTxtContent);
     } else {
-      console.warn("patches.txt file is missing for Flavio format.");
+      console.warn("patches.txt or .patch.txt file is missing for Flavio format.");
       // Proceed without patchesData
     }
 
@@ -590,22 +603,40 @@ function App() {
           (p) => p.type === Number(typeIndex),
         );
 
-        // Collect patches associated with this type
+        // Get unique patch IDs for this particle type
+        const uniquePatchIds = new Set();
         particlesOfType.forEach((p) => {
-          patches.push(...p.patches);
+          if (p.patches && Array.isArray(p.patches)) {
+            p.patches.forEach(patchId => uniquePatchIds.add(patchId));
+          }
         });
 
+        // Convert to arrays and get positions
+        patches = Array.from(uniquePatchIds);
         patchPositions = patches
           .map((patchId) => patchesData[patchId]?.position)
           .filter(Boolean);
+
+        console.log(`Type ${typeIndex}: Found ${patches.length} unique patches, ${patchPositions.length} valid positions`);
       }
 
-      particleTypes.push({
+      const particleType = {
         count,
         typeIndex: Number(typeIndex),
         patches: patches || [], // Ensure patches is always an array
         patchPositions: patchPositions || [], // Ensure patchPositions is always an array
+      };
+      
+      console.log(`Particle type ${typeIndex} summary:`, {
+        count: particleType.count,
+        typeIndex: particleType.typeIndex,
+        patchCount: particleType.patches.length,
+        patchPositionCount: particleType.patchPositions.length,
+        patches: particleType.patches.slice(0, 3), // Show first 3 patch IDs
+        firstPatchPosition: particleType.patchPositions[0]
       });
+      
+      particleTypes.push(particleType);
     });
 
     return { totalParticles, typeCount, particleTypes };
@@ -655,17 +686,33 @@ function App() {
         currentPatch = {};
       } else if (line.startsWith("id =")) {
         currentPatch.id = Number(line.split("=")[1].trim());
+      } else if (line.startsWith("color =")) {
+        currentPatch.color = Number(line.split("=")[1].trim());
+      } else if (line.startsWith("strength =")) {
+        currentPatch.strength = Number(line.split("=")[1].trim());
       } else if (line.startsWith("position =")) {
         const positionStr = line.split("=")[1].trim();
-        const [x, y, z] = positionStr.split(",").map(Number);
+        // Handle both comma-separated and space-separated coordinates
+        const coords = positionStr.includes(",") 
+          ? positionStr.split(",").map(s => s.trim()).map(Number)
+          : positionStr.split(/\s+/).map(Number);
+        const [x, y, z] = coords;
         currentPatch.position = { x, y, z };
-      } else if (line.startsWith("a1 =")) {
+      } else if (line.startsWith("a1=") || line.startsWith("a1 =")) {
         const a1Str = line.split("=")[1].trim();
-        const [x, y, z] = a1Str.split(",").map(Number);
+        // Handle both comma-separated and space-separated coordinates
+        const coords = a1Str.includes(",") 
+          ? a1Str.split(",").map(s => s.trim()).map(Number)
+          : a1Str.split(/\s+/).map(Number);
+        const [x, y, z] = coords;
         currentPatch.a1 = { x, y, z };
-      } else if (line.startsWith("a2 =")) {
+      } else if (line.startsWith("a2=") || line.startsWith("a2 =")) {
         const a2Str = line.split("=")[1].trim();
-        const [x, y, z] = a2Str.split(",").map(Number);
+        // Handle both comma-separated and space-separated coordinates
+        const coords = a2Str.includes(",") 
+          ? a2Str.split(",").map(s => s.trim()).map(Number)
+          : a2Str.split(/\s+/).map(Number);
+        const [x, y, z] = coords;
         currentPatch.a2 = { x, y, z };
       }
     });

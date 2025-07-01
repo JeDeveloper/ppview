@@ -145,10 +145,12 @@ function analyzeParticleFile(lines, filename) {
   }
 
   // Fallback to filename-based detection for these specific files
-  if (filename.toLowerCase().includes('particle')) {
+  // Only accept exact filenames (case-insensitive)
+  const lowerFilename = filename.toLowerCase();
+  if (lowerFilename === 'particles.txt') {
     return 'particles-info';
   }
-  if (filename.toLowerCase().includes('patch')) {
+  if (lowerFilename === 'patches.txt' || lowerFilename.endsWith('.patch.txt')) {
     return 'patches-info';
   }
 
@@ -191,8 +193,12 @@ function hasPatchesFormat(lines) {
   let hasPatchEntry = false;
   let hasIdEntry = false;
   let hasPositionEntry = false;
+  let hasColorEntry = false;
+  let hasStrengthEntry = false;
+  let hasA1Entry = false;
+  let hasA2Entry = false;
 
-  for (const line of lines.slice(0, 20)) { // Check first 20 lines
+  for (const line of lines.slice(0, 30)) { // Check first 30 lines to find extended format
     if (/^patch_\d+/.test(line)) {
       hasPatchEntry = true;
     }
@@ -202,9 +208,27 @@ function hasPatchesFormat(lines) {
     if (/^position\s*=/.test(line)) {
       hasPositionEntry = true;
     }
+    if (/^color\s*=/.test(line)) {
+      hasColorEntry = true;
+    }
+    if (/^strength\s*=/.test(line)) {
+      hasStrengthEntry = true;
+    }
+    if (/^a1\s*=/.test(line)) {
+      hasA1Entry = true;
+    }
+    if (/^a2\s*=/.test(line)) {
+      hasA2Entry = true;
+    }
   }
 
-  return hasPatchEntry && hasIdEntry;
+  // Standard flavio format: patch_X blocks with id and position
+  const isStandardFlavio = hasPatchEntry && hasIdEntry && hasPositionEntry;
+  
+  // Extended flavio format: patch_X blocks with additional fields like color, strength, a1, a2
+  const isExtendedFlavio = hasPatchEntry && hasIdEntry && (hasColorEntry || hasStrengthEntry || hasA1Entry || hasA2Entry);
+  
+  return isStandardFlavio || isExtendedFlavio;
 }
 
 /**

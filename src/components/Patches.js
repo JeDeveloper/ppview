@@ -17,6 +17,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
   const geometry = useMemo(() => {
     const cone = new THREE.ConeGeometry(coneRadius, coneHeight, coneSegments);
     // Translate the cone so its tip is at the origin and base points outward
+    // This ensures the tip of the cone is at the patch position
     cone.translate(0, -coneHeight / 2, 0);
     return cone;
   }, [coneRadius, coneHeight, coneSegments]);
