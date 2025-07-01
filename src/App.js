@@ -1064,17 +1064,26 @@ function App() {
                   patchesByID.set(patchID, []);
                 }
                 
-                // Compute patch position
+                // Compute patch position and direction
                 const localPatchPosition = new THREE.Vector3(
                   patchOffset.x,
                   patchOffset.y,
                   patchOffset.z
                 ).multiplyScalar(0.5);
                 
+                // Create the outward-pointing direction vector
+                const patchDirection = new THREE.Vector3(
+                  patchOffset.x,
+                  patchOffset.y,
+                  patchOffset.z
+                ).normalize();
+                
                 // Apply rotation if available
                 let rotatedPatchPosition = localPatchPosition.clone();
+                let rotatedPatchDirection = patchDirection.clone();
                 if (rotationMatrix) {
                   rotatedPatchPosition.applyMatrix3(rotationMatrix);
+                  rotatedPatchDirection.applyMatrix3(rotationMatrix);
                 }
                 
                 // Translate to particle's global position
@@ -1082,13 +1091,16 @@ function App() {
                 
                 patchesByID.get(patchID).push({
                   position: finalPatchPosition,
+                  direction: rotatedPatchDirection,
                   particleIndex: particle.index
                 });
               });
             });
             
             // Create instanced meshes for each patch ID
-            const patchGeometry = new THREE.SphereGeometry(0.3, 6, 4); // Smaller, lower-poly patches
+            // Use cone geometry for patches - same as in Patches component
+            const patchGeometry = new THREE.ConeGeometry(0.2, 0.4, 8);
+            patchGeometry.translate(0, -0.2, 0); // Move cone so tip is at origin (inverted)
             
             patchesByID.forEach((patches, patchID) => {
               const patchColor = getColorForPatchID(patchID);
@@ -1105,10 +1117,20 @@ function App() {
                 patches.length
               );
               
-              // Set up patch instances
+              // Set up patch instances with proper cone orientation
               const dummy = new THREE.Object3D();
               patches.forEach((patch, i) => {
                 dummy.position.copy(patch.position);
+                
+                // Orient cone to point inward (same logic as in Patches component)
+                if (patch.direction) {
+                  const upVector = new THREE.Vector3(0, 1, 0);
+                  const inwardDirection = patch.direction.clone().negate(); // Invert direction
+                  const quaternion = new THREE.Quaternion();
+                  quaternion.setFromUnitVectors(upVector, inwardDirection);
+                  dummy.setRotationFromQuaternion(quaternion);
+                }
+                
                 dummy.updateMatrix();
                 patchInstancedMesh.setMatrixAt(i, dummy.matrix);
               });

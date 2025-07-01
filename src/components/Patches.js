@@ -7,15 +7,25 @@ import { getColorForPatchID } from '../utils/colorUtils';
 function Patches({ particles, patchPositions, patchIDs, boxSize }) {
   const meshRef = useRef();
   
-  // Adjust patch radius as needed
-  const patchRadius = 0.3;
+  // Patch cone dimensions
+  const coneRadius = 0.2;  // Base radius of the cone
+  const coneHeight = 0.4;  // Height of the cone
+  const coneSegments = 8;  // Number of segments for cone base
 
-  // Create geometry and material for patches (optimized)
-  const geometry = useMemo(() => new THREE.SphereGeometry(patchRadius, 6, 6), [patchRadius]); // Reduced geometry complexity
+  // Create cone geometry and material for patches
+  // Cone points in +Y direction by default, we'll rotate it to point inward
+  const geometry = useMemo(() => {
+    const cone = new THREE.ConeGeometry(coneRadius, coneHeight, coneSegments);
+    // Translate the cone so its tip is at the origin and base points outward
+    cone.translate(0, -coneHeight / 2, 0);
+    return cone;
+  }, [coneRadius, coneHeight, coneSegments]);
+  
   const material = useMemo(() => new THREE.MeshStandardMaterial({ 
     color: 'white',
-    metalness: 0.2,
-    roughness: 0.8
+    metalness: 0.3,
+    roughness: 0.7,
+    side: THREE.DoubleSide // Ensure cones are visible from all angles
   }), []);
   
   // Check if we have valid patch data
@@ -56,23 +66,43 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
             continue;
           }
 
-          // Compute the patch position
+          // Compute the patch position and orientation
           const localPatchPosition = new THREE.Vector3(
             patchOffset.x,
             patchOffset.y,
             patchOffset.z
-          ).multiplyScalar(0.5); // Adjust scalar based on particle radius if necessary
+          ).multiplyScalar(0.5); // Scale based on particle radius
 
-          // Rotate the local patch position using the rotation matrix
-          let rotatedPatchPosition = localPatchPosition;
+          // Create the outward-pointing direction vector (normalized patch offset)
+          const patchDirection = new THREE.Vector3(
+            patchOffset.x,
+            patchOffset.y,
+            patchOffset.z
+          ).normalize();
+
+          // Rotate the local patch position and direction using the rotation matrix
+          let rotatedPatchPosition = localPatchPosition.clone();
+          let rotatedPatchDirection = patchDirection.clone();
+          
           if (rotationMatrix) {
-            rotatedPatchPosition = localPatchPosition.applyMatrix3(rotationMatrix);
+            rotatedPatchPosition.applyMatrix3(rotationMatrix);
+            rotatedPatchDirection.applyMatrix3(rotationMatrix);
           }
 
           // Translate to the particle's global position
           const patchPosition = rotatedPatchPosition.add(particlePosition);
 
+          // Set up the cone transformation
           dummy.position.copy(patchPosition);
+          
+          // Orient the cone to point inward toward the particle
+          // Default cone points in +Y direction, we need it to point inward (opposite to patch direction)
+          const upVector = new THREE.Vector3(0, 1, 0);
+          const inwardDirection = rotatedPatchDirection.clone().negate(); // Invert direction
+          const quaternion = new THREE.Quaternion();
+          quaternion.setFromUnitVectors(upVector, inwardDirection);
+          dummy.setRotationFromQuaternion(quaternion);
+          
           dummy.updateMatrix();
           mesh.setMatrixAt(index, dummy.matrix);
 
@@ -135,7 +165,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
         mesh.material.needsUpdate = true;
       }
     }
-  }, [particles, patchPositions, patchIDs, boxSize, patchRadius, hasValidPatchData]);
+  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData]);
 
   // Return null if no valid patch data
   if (!hasValidPatchData) {
