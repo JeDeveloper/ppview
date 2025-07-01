@@ -29,6 +29,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false); // Loading state
   const [showParticleLegend, setShowParticleLegend] = useState(false);
   const [showSimulationBox, setShowSimulationBox] = useState(true);
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
 
   // New state for selected particles
   const [selectedParticles, setSelectedParticles] = useState([]);
@@ -42,6 +43,56 @@ function App() {
       sceneRef.invalidate();
     }
   }, [sceneRef]);
+
+  // Function to take a screenshot
+  const takeScreenshot = useCallback(() => {
+    if (!sceneRef || !sceneRef.gl || !sceneRef.scene || !sceneRef.camera) {
+      alert('Scene not ready for screenshot');
+      return;
+    }
+
+    try {
+      // Force invalidate to ensure scene is rendered
+      if (sceneRef.invalidate) {
+        sceneRef.invalidate();
+      }
+      
+      // Wait a brief moment then force a render and capture
+      setTimeout(() => {
+        try {
+          // Force a fresh render
+          sceneRef.gl.render(sceneRef.scene, sceneRef.camera);
+          
+          // Get the canvas element
+          const canvas = sceneRef.gl.domElement;
+          if (!canvas) {
+            alert('Canvas not found');
+            return;
+          }
+          
+          // Capture the screenshot
+          const dataURL = canvas.toDataURL('image/png');
+          
+          // Create a download link for the screenshot
+          const link = document.createElement('a');
+          link.href = dataURL;
+          link.download = `ppview_screenshot_config_${currentConfigIndex + 1}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          console.log('Screenshot saved successfully');
+        } catch (error) {
+          console.error('Error capturing screenshot:', error);
+          alert('Failed to capture screenshot - try again');
+        }
+      }, 150);
+      
+    } catch (error) {
+      console.error('Error taking screenshot:', error);
+      alert('Failed to take screenshot');
+    }
+  }, [sceneRef, currentConfigIndex]);
 
   const handleFilesReceived = async (files) => {
     if (!files || files.length === 0) {
@@ -820,6 +871,10 @@ function App() {
         case "d":
           shiftPositions("z", -1);
           break;
+        case "p":
+        case "P":
+          takeScreenshot();
+          break;
         default:
           break;
       }
@@ -830,7 +885,7 @@ function App() {
       // Cleanup event listener on unmount
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [shiftPositions]);
+  }, [shiftPositions, takeScreenshot]);
 
   return (
     <div className="App">
@@ -846,50 +901,66 @@ function App() {
         />
       )}
       {positions.length > 0 && !isLoading && (
-        <div className="controls">
-          <input
-            type="range"
-            min="0"
-            max={totalConfigs - 1}
-            value={currentConfigIndex}
-            onChange={handleSliderChange}
-          />
-          <div>
-            Configuration: {currentConfigIndex + 1} / {totalConfigs}
+        <>
+          <div className="controls-toggle">
+            <button 
+              className="toggle-button" 
+              onClick={() => setIsControlsVisible(!isControlsVisible)}
+            >
+              {isControlsVisible ? '▼ Hide Controls' : '▲ Show Controls'}
+            </button>
           </div>
-          <div>Time: {currentTime.toLocaleString()}</div>
-          {/* Checkbox to toggle Patch legend */}
-          <label className="legend-toggle">
-            <input
-              type="checkbox"
-              checked={showPatchLegend}
-              onChange={(e) => setShowPatchLegend(e.target.checked)}
-            />
-            Show Patch Legend
-          </label>
-          {/* Checkbox to toggle Particle legend */}
-          <label className="legend-toggle">
-            <input
-              type="checkbox"
-              checked={showParticleLegend}
-              onChange={(e) => setShowParticleLegend(e.target.checked)}
-            />
-            Show Particle Legend
-          </label>
-          {/* Checkbox to toggle Simulation Box */}
-          <label className="legend-toggle">
-            <input
-              type="checkbox"
-              checked={showSimulationBox}
-              onChange={(e) => setShowSimulationBox(e.target.checked)}
-            />
-            Show Simulation Box
-          </label>
-          {/* GLTF Export Button */}
-          <button className="export-button" onClick={exportGLTF}>
-            Export GLTF
-          </button>
-        </div>
+          {isControlsVisible && (
+            <div className="controls">
+              <input
+                type="range"
+                min="0"
+                max={totalConfigs - 1}
+                value={currentConfigIndex}
+                onChange={handleSliderChange}
+              />
+              <div>
+                Configuration: {currentConfigIndex + 1} / {totalConfigs}
+              </div>
+              <div>Time: {currentTime.toLocaleString()}</div>
+              {/* Checkbox to toggle Patch legend */}
+              <label className="legend-toggle">
+                <input
+                  type="checkbox"
+                  checked={showPatchLegend}
+                  onChange={(e) => setShowPatchLegend(e.target.checked)}
+                />
+                Show Patch Legend
+              </label>
+              {/* Checkbox to toggle Particle legend */}
+              <label className="legend-toggle">
+                <input
+                  type="checkbox"
+                  checked={showParticleLegend}
+                  onChange={(e) => setShowParticleLegend(e.target.checked)}
+                />
+                Show Particle Legend
+              </label>
+              {/* Checkbox to toggle Simulation Box */}
+              <label className="legend-toggle">
+                <input
+                  type="checkbox"
+                  checked={showSimulationBox}
+                  onChange={(e) => setShowSimulationBox(e.target.checked)}
+                />
+                Show Simulation Box
+              </label>
+              {/* Screenshot Button */}
+              <button className="screenshot-button" onClick={takeScreenshot}>
+                📸 Take Screenshot (P)
+              </button>
+              {/* GLTF Export Button */}
+              <button className="export-button" onClick={exportGLTF}>
+                📁 Export GLTF
+              </button>
+            </div>
+          )}
+        </>
       )}
       {/* Conditionally render the SelectedParticlesDisplay component */}
       {selectedParticles.length > 0 && (

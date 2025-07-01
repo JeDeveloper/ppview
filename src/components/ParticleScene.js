@@ -18,6 +18,7 @@ const ParticleScene = ({
       camera={{ position: [0, 0, Math.max(...boxSize) * 1.5], fov: 75 }}
       frameloop="demand" // Only render when needed
       dpr={[1, 2]} // Adaptive pixel ratio for performance
+      gl={{ preserveDrawingBuffer: true }} // Enable screenshot capability
     >
       <SceneContent
         positions={positions}
@@ -40,15 +41,15 @@ function SceneContent({
   showSimulationBox,
 }) {
   const controlsRef = useRef();
-  const { scene, camera, invalidate } = useThree();
+  const { scene, camera, invalidate, gl } = useThree();
   const isAnimating = useRef(false);
 
-  // Provide scene reference to parent component
+  // Provide complete scene data to parent component
   useEffect(() => {
-    if (onSceneReady && scene) {
-      onSceneReady(scene);
+    if (onSceneReady && scene && camera && gl) {
+      onSceneReady({ scene, camera, gl, invalidate });
     }
-  }, [onSceneReady, scene]);
+  }, [onSceneReady, scene, camera, gl, invalidate]);
 
   // Function to handle double-click on a particle
   const handleParticleDoubleClick = (particlePosition) => {
