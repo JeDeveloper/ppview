@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useMemo, useCallback } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { mutedParticleColors } from "../colors";
+import { getParticleColors } from "../colors";
 import Patches from "./Patches";
 import SelectableParticle from "./SelectableParticle";
 function Particles({
@@ -11,6 +11,7 @@ function Particles({
   setSelectedParticles,
   onParticleDoubleClick,
   showPatches = true, // Default to true for backward compatibility
+  colorScheme = null, // Allow color scheme to be passed as prop
 }) {
   const meshRef = useRef();
   const count = positions.length;
@@ -27,6 +28,9 @@ function Particles({
     [],
   );
 
+  // Get current particle colors based on the selected scheme
+  const particleColors = useMemo(() => getParticleColors(colorScheme), [colorScheme]);
+
   // Memoize particle data to avoid recalculation
   const particleData = useMemo(() => {
     return positions.map((pos, i) => ({
@@ -35,10 +39,10 @@ function Particles({
         y: pos.y - boxSize[1] / 2,
         z: pos.z - boxSize[2] / 2,
       },
-      colorIndex: pos.typeIndex % mutedParticleColors.length,
-      typeColor: new THREE.Color(mutedParticleColors[pos.typeIndex % mutedParticleColors.length])
+      colorIndex: pos.typeIndex % particleColors.length,
+      typeColor: new THREE.Color(particleColors[pos.typeIndex % particleColors.length])
     }));
-  }, [positions, boxSize]);
+  }, [positions, boxSize, particleColors]);
 
   // Create colors array for the particles
   const colors = useMemo(() => {
@@ -48,6 +52,22 @@ function Particles({
     });
     return colorArray;
   }, [particleData, count]);
+
+  // Update colors when color scheme changes
+  useEffect(() => {
+    if (meshRef.current && particleData.length > 0) {
+      const mesh = meshRef.current;
+      
+      // Update instance colors with new color scheme
+      particleData.forEach((data, i) => {
+        if (!selectedParticles.includes(i)) {
+          mesh.setColorAt(i, data.typeColor);
+        }
+      });
+      
+      mesh.instanceColor.needsUpdate = true;
+    }
+  }, [particleData, selectedParticles]);
 
   // Set positions and colors for instanced particles (optimized)
   useEffect(() => {

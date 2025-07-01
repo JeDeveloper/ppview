@@ -6,7 +6,9 @@ import ParticleScene from "./components/ParticleScene";
 import PatchLegend from "./components/PatchLegend";
 import ParticleLegend from "./components/ParticleLegend";
 import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay"; // Import the new component
+import ColorSchemeSelector from "./components/ColorSchemeSelector"; // Import the new color scheme selector
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
+import { getCurrentColorScheme, getParticleColors } from "./colors";
 import "./styles.css";
 
 // Helper function for fallback trajectory file prioritization
@@ -97,6 +99,9 @@ function App() {
 
   // State to store the scene reference for GLTF export
   const [sceneRef, setSceneRef] = useState(null);
+  
+  // State for color scheme
+  const [currentColorScheme, setCurrentColorScheme] = useState(getCurrentColorScheme());
   
   // State for trajectory playback
   const [isPlaying, setIsPlaying] = useState(false);
@@ -934,7 +939,7 @@ function App() {
     }
 
     // Import particle colors and patch color utility
-    const { mutedParticleColors } = require('./colors');
+    const particleColors = getParticleColors(currentColorScheme);
     const { getColorForPatchID } = require('./utils/colorUtils');
 
     // Create a new scene for export
@@ -979,8 +984,8 @@ function App() {
     
     // Create instanced mesh for each particle type
     particlesByType.forEach((particles, typeIndex) => {
-      const colorIndex = typeIndex % mutedParticleColors.length;
-      const particleColor = new THREE.Color(mutedParticleColors[colorIndex]);
+      const colorIndex = typeIndex % particleColors.length;
+      const particleColor = new THREE.Color(particleColors[colorIndex]);
       
       // Create material for this particle type
       const material = new THREE.MeshStandardMaterial({
@@ -1203,6 +1208,7 @@ function App() {
           onSceneReady={setSceneRef} // Pass callback to get scene reference
           showSimulationBox={showSimulationBox} // Pass simulation box visibility
           showPatches={showPatchLegend} // Control patch visibility with patch legend button
+          colorScheme={currentColorScheme} // Pass current color scheme
         />
       )}
       {positions.length > 0 && !isLoading && (
@@ -1300,6 +1306,11 @@ function App() {
                   </label>
                 </div>
                 
+                {/* Color scheme selector */}
+                <div className="color-scheme-section">
+                  <ColorSchemeSelector onSchemeChange={setCurrentColorScheme} />
+                </div>
+                
                 {/* Action buttons */}
                 <div className="action-buttons">
                   <button className="screenshot-button" onClick={takeScreenshot}>
@@ -1344,7 +1355,10 @@ function App() {
       )}
       {/* Conditionally render the ParticleLegend component */}
       {topData && showParticleLegend && !isLoading && (
-        <ParticleLegend particleTypes={topData.particleTypes} />
+        <ParticleLegend 
+          particleTypes={topData.particleTypes} 
+          colorScheme={currentColorScheme}
+        />
       )}
       {isLoading && (
         <div className="loading-overlay">

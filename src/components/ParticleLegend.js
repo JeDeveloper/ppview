@@ -1,8 +1,10 @@
 import React from 'react';
-import { mutedParticleColors } from '../colors'; 
+import { getParticleColors } from '../colors'; 
 
 
-function ParticleLegend({ particleTypes }) {
+function ParticleLegend({ particleTypes, colorScheme = null }) {
+  const particleColors = getParticleColors(colorScheme);
+  
   return (
     <div className="particle-legend">
       <h3>Particle Color Legend</h3>
@@ -13,7 +15,7 @@ function ParticleLegend({ particleTypes }) {
               className="color-box"
               style={{
                 backgroundColor:
-                  mutedParticleColors[type.typeIndex % mutedParticleColors.length],
+                  particleColors[type.typeIndex % particleColors.length],
               }}
             ></span>
             Particle Type {type.typeIndex}
