@@ -1,5 +1,5 @@
 import React, { useRef, forwardRef, useEffect } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Environment, Stats } from "@react-three/drei";
 import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
@@ -16,6 +16,8 @@ const ParticleScene = ({
   return (
     <Canvas 
       camera={{ position: [0, 0, Math.max(...boxSize) * 1.5], fov: 75 }}
+      frameloop="demand" // Only render when needed
+      dpr={[1, 2]} // Adaptive pixel ratio for performance
     >
       <SceneContent
         positions={positions}
@@ -38,7 +40,8 @@ function SceneContent({
   showSimulationBox,
 }) {
   const controlsRef = useRef();
-  const { scene, camera } = useThree();
+  const { scene, camera, invalidate } = useThree();
+  const isAnimating = useRef(false);
 
   // Provide scene reference to parent component
   useEffect(() => {
@@ -57,6 +60,8 @@ function SceneContent({
       .clone()
       .add(new THREE.Vector3(0, 0, 5)); // Adjust the offset as needed
 
+    isAnimating.current = true;
+    
     const animate = (time) => {
       const elapsed = (time - startTime) / 1000;
       const t = Math.min(elapsed / duration, 1);
@@ -68,18 +73,38 @@ function SceneContent({
         t,
       );
       controlsRef.current.update();
+      invalidate(); // Request a render
 
       if (t < 1) {
         requestAnimationFrame(animate);
+      } else {
+        isAnimating.current = false;
       }
     };
 
     requestAnimationFrame(animate);
   };
 
+  // Handle controls changes to trigger re-render
+  useFrame(() => {
+    if (controlsRef.current && (controlsRef.current.enabled && !isAnimating.current)) {
+      // Only invalidate if controls have actually changed
+      const controls = controlsRef.current;
+      if (controls._hasChanged) {
+        invalidate();
+        controls._hasChanged = false;
+      }
+    }
+  });
+
   return (
     <>
-      <OrbitControls ref={controlsRef} />
+      <OrbitControls 
+        ref={controlsRef} 
+        onChange={() => invalidate()} // Trigger re-render on camera changes
+        enableDamping={true}
+        dampingFactor={0.05}
+      />
       <ambientLight intensity={0.5} />
       <Environment preset="sunset" />
 

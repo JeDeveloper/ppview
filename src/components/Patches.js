@@ -1,6 +1,6 @@
 // src/components/Patches.js
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { getColorForPatchID } from '../utils/colorUtils';
 
@@ -11,9 +11,13 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
   // Adjust patch radius as needed
   const patchRadius = 0.3;
 
-  // Create geometry and material for patches
-  const geometry = useMemo(() => new THREE.SphereGeometry(patchRadius, 8, 8), [patchRadius]);
-  const material = useMemo(() => new THREE.MeshStandardMaterial({ color: 'white' }), []);
+  // Create geometry and material for patches (optimized)
+  const geometry = useMemo(() => new THREE.SphereGeometry(patchRadius, 6, 6), [patchRadius]); // Reduced geometry complexity
+  const material = useMemo(() => new THREE.MeshStandardMaterial({ 
+    color: 'white',
+    metalness: 0.2,
+    roughness: 0.8
+  }), []);
 
   useEffect(() => {
     if (meshRef.current) {
@@ -65,11 +69,11 @@ function Patches({ particles, patchPositions, patchIDs, boxSize }) {
           const color = getColorForPatchID(patchID);
           colors.push(color.r, color.g, color.b);
 
-          // Debugging logs
-          console.log(`Processing Patch ${index}:`);
-          console.log(`Patch ID: ${patchID}, Color: ${color.getStyle()}`);
-          console.log(`Patch Position: ${patchPosition.toArray()}`);
-          console.log(`Rotation Matrix:`, rotationMatrix);
+      // Remove debugging logs for better performance
+      // console.log(`Processing Patch ${index}:`);
+      // console.log(`Patch ID: ${patchID}, Color: ${color.getStyle()}`);
+      // console.log(`Patch Position: ${patchPosition.toArray()}`);
+      // console.log(`Rotation Matrix:`, rotationMatrix);
 
           index++;
         }

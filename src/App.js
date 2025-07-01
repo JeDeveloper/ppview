@@ -35,6 +35,13 @@ function App() {
 
   // State to store the scene reference for GLTF export
   const [sceneRef, setSceneRef] = useState(null);
+  
+  // Function to trigger scene re-render when needed
+  const invalidateScene = useCallback(() => {
+    if (sceneRef && sceneRef.invalidate) {
+      sceneRef.invalidate();
+    }
+  }, [sceneRef]);
 
   const handleFilesReceived = async (files) => {
     if (!files || files.length === 0) {
@@ -538,6 +545,8 @@ function App() {
   const handleSliderChange = (e) => {
     const newIndex = parseInt(e.target.value, 10);
     setCurrentConfigIndex(newIndex);
+    // Trigger re-render when configuration changes
+    setTimeout(invalidateScene, 0);
   };
 
   // Function to shift positions along an axis

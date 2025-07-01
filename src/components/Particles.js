@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useMemo } from "react";
-import * as THREE from "three";
+import React, { useRef, useEffect, useMemo, useCallback } from "react";
 import { useThree } from "@react-three/fiber";
-import Patches from "./Patches";
+import * as THREE from "three";
 import { mutedParticleColors } from "../colors";
-
+import Patches from "./Patches";
+import SelectableParticle from "./SelectableParticle";
 function Particles({
   positions,
   boxSize,
@@ -26,141 +26,135 @@ function Particles({
     [],
   );
 
+  // Memoize particle data to avoid recalculation
+  const particleData = useMemo(() => {
+    return positions.map((pos, i) => ({
+      position: {
+        x: pos.x - boxSize[0] / 2,
+        y: pos.y - boxSize[1] / 2,
+        z: pos.z - boxSize[2] / 2,
+      },
+      colorIndex: pos.typeIndex % mutedParticleColors.length,
+      typeColor: new THREE.Color(mutedParticleColors[pos.typeIndex % mutedParticleColors.length])
+    }));
+  }, [positions, boxSize]);
+
   // Create colors array for the particles
   const colors = useMemo(() => {
     const colorArray = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const colorIndex = positions[i].typeIndex % mutedParticleColors.length;
-      const typeColor = new THREE.Color(mutedParticleColors[colorIndex]);
-      colorArray.set([typeColor.r, typeColor.g, typeColor.b], i * 3);
-    }
+    particleData.forEach((data, i) => {
+      colorArray.set([data.typeColor.r, data.typeColor.g, data.typeColor.b], i * 3);
+    });
     return colorArray;
-  }, [positions, count]);
+  }, [particleData, count]);
 
+  // Set positions and colors for instanced particles (optimized)
   useEffect(() => {
-    if (meshRef.current && positions.length > 0) {
+    if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
       const dummy = new THREE.Object3D();
 
-      for (let i = 0; i < count; i++) {
-        const pos = positions[i];
-
-        // Set position, adjusting for box centering
+      particleData.forEach((data, i) => {
+        // Set position
         dummy.position.set(
-          pos.x - boxSize[0] / 2,
-          pos.y - boxSize[1] / 2,
-          pos.z - boxSize[2] / 2,
+          data.position.x,
+          data.position.y,
+          data.position.z,
         );
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
-      }
+      });
 
       mesh.instanceMatrix.needsUpdate = true;
 
       // Set initial colors
       mesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
     }
-  }, [positions, boxSize, count, colors]);
+  }, [particleData, colors]);
+
+  // Memoize event handlers to prevent unnecessary re-creation
+  const handleClick = useCallback((event) => {
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(meshRef.current);
+
+    if (intersects.length > 0) {
+      const instanceId = intersects[0].instanceId;
+
+      setSelectedParticles((prevSelected) => {
+        if (event.ctrlKey || event.metaKey) {
+          // If Ctrl or Command key is pressed, toggle selection of the particle
+          if (prevSelected.includes(instanceId)) {
+            // Deselect particle
+            return prevSelected.filter((id) => id !== instanceId);
+          } else {
+            // Select particle
+            return [...prevSelected, instanceId];
+          }
+        } else {
+          // If Ctrl is not pressed, select only this particle
+          return [instanceId];
+        }
+      });
+    } else {
+      if (!event.ctrlKey && !event.metaKey) {
+        // If Ctrl is not pressed, clear selection
+        setSelectedParticles([]);
+      }
+    }
+  }, [camera, setSelectedParticles]);
+
+  const handleDoubleClick = useCallback((event) => {
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(meshRef.current);
+
+    if (intersects.length > 0) {
+      const instanceId = intersects[0].instanceId;
+      const particlePosition = particleData[instanceId]?.position;
+      
+      if (particlePosition && onParticleDoubleClick) {
+        onParticleDoubleClick(new THREE.Vector3(
+          particlePosition.x,
+          particlePosition.y,
+          particlePosition.z
+        ));
+      }
+    }
+  }, [camera, particleData, onParticleDoubleClick]);
 
   // Raycaster for detecting clicks and double-clicks
   useEffect(() => {
-    const handleClick = (event) => {
-      const raycaster = new THREE.Raycaster();
-      const pointer = new THREE.Vector2();
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(pointer, camera);
-      const intersects = raycaster.intersectObject(meshRef.current);
-
-      if (intersects.length > 0) {
-        const instanceId = intersects[0].instanceId;
-
-        setSelectedParticles((prevSelected) => {
-          if (event.ctrlKey || event.metaKey) {
-            // If Ctrl or Command key is pressed, toggle selection of the particle
-            if (prevSelected.includes(instanceId)) {
-              // Deselect particle
-              return prevSelected.filter((id) => id !== instanceId);
-            } else {
-              // Select particle
-              return [...prevSelected, instanceId];
-            }
-          } else {
-            // If Ctrl is not pressed, select only this particle
-            return [instanceId];
-          }
-        });
-      } else {
-        if (!event.ctrlKey && !event.metaKey) {
-          // If Ctrl is not pressed, clear selection
-          setSelectedParticles([]);
-        }
-      }
-    };
-
-    const handleDoubleClick = (event) => {
-      const raycaster = new THREE.Raycaster();
-      const pointer = new THREE.Vector2();
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(pointer, camera);
-      const intersects = raycaster.intersectObject(meshRef.current);
-
-      if (intersects.length > 0) {
-        const instanceId = intersects[0].instanceId;
-        const particle = positions[instanceId];
-
-        // Calculate world position of the particle
-        const particlePosition = new THREE.Vector3(
-          particle.x - boxSize[0] / 2,
-          particle.y - boxSize[1] / 2,
-          particle.z - boxSize[2] / 2,
-        );
-
-        // Call the callback function
-        if (onParticleDoubleClick) {
-          onParticleDoubleClick(particlePosition);
-        }
-      }
-    };
-
     gl.domElement.addEventListener("click", handleClick);
     gl.domElement.addEventListener("dblclick", handleDoubleClick);
     return () => {
       gl.domElement.removeEventListener("click", handleClick);
       gl.domElement.removeEventListener("dblclick", handleDoubleClick);
     };
-  }, [
-    gl,
-    camera,
-    setSelectedParticles,
-    positions,
-    boxSize,
-    onParticleDoubleClick,
-  ]);
+  }, [gl, handleClick, handleDoubleClick]);
 
-  // Apply selection effect to selected particles
+  // Apply selection effect to selected particles (optimized)
   useEffect(() => {
-    if (meshRef.current) {
+    if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
+      const yellowColor = new THREE.Color("yellow");
 
-      for (let i = 0; i < count; i++) {
-        const colorIndex = positions[i].typeIndex % mutedParticleColors.length;
-        let typeColor = new THREE.Color(mutedParticleColors[colorIndex]);
-
-        if (selectedParticles.includes(i)) {
-          // Adjust the color to indicate selection
-          typeColor = new THREE.Color("yellow");
-        }
-
-        mesh.setColorAt(i, typeColor);
-      }
+      particleData.forEach((data, i) => {
+        const color = selectedParticles.includes(i) ? yellowColor : data.typeColor;
+        mesh.setColorAt(i, color);
+      });
 
       mesh.instanceColor.needsUpdate = true;
     }
-  }, [selectedParticles, count, positions]);
+  }, [selectedParticles, particleData]);
 
   // Group particles by type
   const particlesByType = useMemo(() => {
