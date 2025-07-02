@@ -1026,25 +1026,49 @@ function App() {
     // Create a new scene for export
     const exportScene = new THREE.Scene();
     
-    // Add improved lighting setup (matching the scene)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    // Add ambient light
+    const ambientLight = new THREE.AmbientLight('#f0f0f0', 0.15);
     exportScene.add(ambientLight);
     
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    keyLight.position.set(10, 10, 5);
-    exportScene.add(keyLight);
+    // Add directional light
+    const directionalLight = new THREE.DirectionalLight('#ffffff', 2.0);
+    directionalLight.position.set(15, 15, 10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 500;
+    directionalLight.shadow.camera.left = -50;
+    directionalLight.shadow.camera.right = 50;
+    directionalLight.shadow.camera.top = 50;
+    directionalLight.shadow.camera.bottom = -50;
+    directionalLight.shadow.bias = -0.0001;
+    exportScene.add(directionalLight);
     
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-    fillLight.position.set(-5, -5, -3);
-    exportScene.add(fillLight);
-    
-    const rimLight = new THREE.DirectionalLight(0xe6f3ff, 0.6);
-    rimLight.position.set(0, 0, -10);
-    exportScene.add(rimLight);
-    
-    const topLight = new THREE.DirectionalLight(0xfff5e6, 0.3);
-    topLight.position.set(0, 15, 0);
-    exportScene.add(topLight);
+    // Add camera following light if available
+    if (sceneRef && sceneRef.camera) {
+      const cameraLight = new THREE.SpotLight('#ffffff', 2.5);
+      cameraLight.angle = Math.PI / 3;
+      cameraLight.penumbra = 0.2;
+      cameraLight.distance = 100;
+      cameraLight.decay = 2;
+      cameraLight.castShadow = true;
+      cameraLight.shadow.mapSize.width = 1024;
+      cameraLight.shadow.mapSize.height = 1024;
+      cameraLight.shadow.camera.near = 0.1;
+      cameraLight.shadow.camera.far = 100;
+      cameraLight.shadow.bias = -0.0001;
+      
+      // Position and redirect the light following the camera
+      const cameraDirection = new THREE.Vector3();
+      sceneRef.camera.getWorldDirection(cameraDirection);
+      cameraLight.position.copy(sceneRef.camera.position.clone().add(cameraDirection.clone().multiplyScalar(-5)).add(new THREE.Vector3(0, 3, 0)));
+      const target = sceneRef.camera.position.clone().add(cameraDirection.multiplyScalar(10));
+      cameraLight.target.position.copy(target);
+      cameraLight.target.updateMatrixWorld();
+      exportScene.add(cameraLight);
+      exportScene.add(cameraLight.target);
+    }
     
     // Add simulation box only if visible
     if (showSimulationBox) {
