@@ -1058,6 +1058,43 @@ function App() {
       exportScene.add(boxMesh);
     }
     
+    // Add backdrop planes only if visible
+    if (showBackdropPlanes) {
+      // Create material for backdrop planes (same as in ParticleScene)
+      const backdropMaterial = new THREE.MeshStandardMaterial({
+        color: 0x808080,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+        metalness: 0.2,
+        roughness: 0.1
+      });
+      
+      // XY plane at z=0 (back)
+      const xyPlaneGeometry = new THREE.PlaneGeometry(currentBoxSize[0], currentBoxSize[1]);
+      const xyPlaneMesh = new THREE.Mesh(xyPlaneGeometry, backdropMaterial.clone());
+      xyPlaneMesh.position.set(0, 0, -currentBoxSize[2] / 2);
+      xyPlaneMesh.rotation.set(0, 0, 0);
+      xyPlaneMesh.name = 'BackdropPlane_XY';
+      exportScene.add(xyPlaneMesh);
+      
+      // XZ plane at y=0 (bottom)
+      const xzPlaneGeometry = new THREE.PlaneGeometry(currentBoxSize[0], currentBoxSize[2]);
+      const xzPlaneMesh = new THREE.Mesh(xzPlaneGeometry, backdropMaterial.clone());
+      xzPlaneMesh.position.set(0, -currentBoxSize[1] / 2, 0);
+      xzPlaneMesh.rotation.set(-Math.PI / 2, 0, 0);
+      xzPlaneMesh.name = 'BackdropPlane_XZ';
+      exportScene.add(xzPlaneMesh);
+      
+      // YZ plane at x=0 (left)
+      const yzPlaneGeometry = new THREE.PlaneGeometry(currentBoxSize[2], currentBoxSize[1]);
+      const yzPlaneMesh = new THREE.Mesh(yzPlaneGeometry, backdropMaterial.clone());
+      yzPlaneMesh.position.set(-currentBoxSize[0] / 2, 0, 0);
+      yzPlaneMesh.rotation.set(0, Math.PI / 2, 0);
+      yzPlaneMesh.name = 'BackdropPlane_YZ';
+      exportScene.add(yzPlaneMesh);
+    }
+    
     // Separate particles into highlighted (selected clusters) and hidden (others)
     const highlightedParticles = new Map(); // typeIndex -> particles
     const hiddenParticles = new Map(); // typeIndex -> particles
@@ -1296,6 +1333,17 @@ function App() {
       });
     }
 
+    // Add camera to the export if available
+    if (sceneRef && sceneRef.camera) {
+      // Clone the current camera with its current position and rotation
+      const camera = sceneRef.camera.clone();
+      camera.name = 'ppview_camera';
+      exportScene.add(camera);
+      
+      // Make this camera the default camera for the GLTF scene
+      exportScene.userData.defaultCamera = camera;
+    }
+
     // Export with optimized settings
     const exporter = new GLTFExporter();
     
@@ -1329,7 +1377,7 @@ function App() {
         embedImages: false
       }
     );
-  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, currentColorScheme, topData, highlightedClusters]);
+  }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, showBackdropPlanes, currentColorScheme, topData, highlightedClusters, sceneRef]);
 
   // useEffect to handle key presses
   useEffect(() => {
