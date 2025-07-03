@@ -10,6 +10,7 @@ import ColorSchemeSelector from "./components/ColorSchemeSelector"; // Import th
 import ClusteringPane from "./components/ClusteringPane"; // Import the new clustering pane
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { getCurrentColorScheme, getParticleColors } from "./colors";
+import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
 import "./styles.css";
 
 // Helper function for fallback trajectory file prioritization
@@ -199,13 +200,79 @@ function App() {
       
       console.log("File analysis results:", categorizedFiles);
 
+      // Process MGL files first (they don't need topology)
+      if (categorizedFiles.mglFile || categorizedFiles.mglTrajectory) {
+        try {
+          let mglData, ppviewData;
+          
+          if (categorizedFiles.mglFile) {
+            const mglContent = await categorizedFiles.mglFile.text();
+            console.log(`Processing MGL file: ${categorizedFiles.mglFile.name}`);
+            
+            mglData = readMGL(mglContent);
+            ppviewData = convertMGLToPPViewFormat(mglData);
+            
+            // Set up data for ppview
+            setTopData(ppviewData.topData);
+            setPositions(ppviewData.positions);
+            setCurrentBoxSize(ppviewData.boxSize);
+            setCurrentTime(0);
+            setCurrentEnergy([0]);
+            setConfigIndex([0]); // Single frame
+            setTotalConfigs(1);
+            
+            console.log(`Loaded MGL file with ${ppviewData.positions.length} particles`);
+          } else {
+            const mglTrajectoryContent = await categorizedFiles.mglTrajectory.text();
+            console.log(`Processing MGL Trajectory file: ${categorizedFiles.mglTrajectory.name}`);
+            
+            mglData = readMGLTrajectory(mglTrajectoryContent);
+            ppviewData = convertMGLToPPViewFormat(mglData);
+            
+            // Set up data for ppview
+            setTopData(ppviewData.topData);
+            setPositions(ppviewData.positions);
+            setCurrentBoxSize(ppviewData.boxSize);
+            setCurrentTime(0);
+            setCurrentEnergy([0]);
+            
+            // Create trajectory index for frame navigation if multiple frames
+            if (mglData.frameCount > 1) {
+              const fakeIndex = Array.from({ length: mglData.frameCount }, (_, i) => i);
+              setConfigIndex(fakeIndex);
+              setTotalConfigs(mglData.frameCount);
+              
+              // Store trajectory data for frame switching
+              setTrajFile({
+                ...categorizedFiles.mglTrajectory,
+                mglTrajectoryData: mglData
+              });
+            } else {
+              setConfigIndex([0]);
+              setTotalConfigs(1);
+            }
+            
+            console.log(`Loaded MGL trajectory with ${mglData.frameCount} frames and ${mglData.totalParticles} total particles`);
+          }
+          
+          setIsLoading(false);
+          return; // Exit early since MGL is self-contained
+        } catch (error) {
+          console.error('Error processing MGL file:', error);
+          alert('Error processing MGL file. Please check the console for details.');
+          setFilesDropped(false);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       // Create file map for compatibility with existing code
       const fileMap = new Map();
       files.forEach((file) => {
         fileMap.set(file.name.trim(), file);
       });
 
-      // Process topology file
+      // Process topology file (only for non-MGL files)
       if (categorizedFiles.topology) {
         const topFile = categorizedFiles.topology.file;
         const topContent = await topFile.text();
@@ -270,6 +337,7 @@ function App() {
         setConfigIndex(index);
         setTotalConfigs(index.length);
       }
+
 
       // Report unknown files
       if (categorizedFiles.unknown.length > 0) {
@@ -336,6 +404,24 @@ function App() {
     if (!topData) {
       alert("Topology data not available.");
       return false;
+    }
+
+    // Handle MGL trajectory data
+    if (file.mglTrajectoryData) {
+      const mglData = file.mglTrajectoryData;
+      if (configNumber >= mglData.frameCount) {
+        alert("MGL frame number out of range");
+        return false;
+      }
+
+      const frame = mglData.frames[configNumber];
+      const ppviewData = convertMGLToPPViewFormat({ frames: [frame] });
+      
+      setPositions(ppviewData.positions);
+      setCurrentBoxSize(ppviewData.boxSize);
+      setCurrentTime(configNumber); // Use frame index as time
+      setCurrentEnergy([0]); // Default energy for MGL
+      return true;
     }
 
     const start = index[configNumber];

@@ -41,6 +41,16 @@ function Particles({
       const isInHighlightedCluster = highlightedClusters.has(i);
       const shouldShow = !showOnlyHighlightedClusters || isInHighlightedCluster;
       
+      // Use MGL color if available, otherwise fall back to ppview color scheme
+      let particleColor;
+      if (pos.mglColor) {
+        // Use the original MGL color
+        particleColor = new THREE.Color(pos.mglColor.r, pos.mglColor.g, pos.mglColor.b);
+      } else {
+        // Fall back to ppview color scheme
+        particleColor = new THREE.Color(particleColors[pos.typeIndex % particleColors.length]);
+      }
+      
       return {
         position: {
           x: pos.x - boxSize[0] / 2,
@@ -48,9 +58,10 @@ function Particles({
           z: pos.z - boxSize[2] / 2,
         },
         colorIndex: pos.typeIndex % particleColors.length,
-        typeColor: new THREE.Color(particleColors[pos.typeIndex % particleColors.length]),
+        typeColor: particleColor,
         isInHighlightedCluster,
-        shouldShow
+        shouldShow,
+        hasMGLColor: !!pos.mglColor
       };
     });
   }, [positions, boxSize, particleColors, highlightedClusters, showOnlyHighlightedClusters]);

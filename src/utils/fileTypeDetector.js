@@ -37,6 +37,16 @@ export async function detectFileType(file) {
       return particleFileType;
     }
 
+    // Check for MGL trajectory files first (more specific)
+    if (isMGLTrajectoryFile(lines)) {
+      return 'mgl-trajectory';
+    }
+
+    // Check for MGL files
+    if (isMGLFile(lines)) {
+      return 'mgl';
+    }
+
     // Check for patch files
     if (isPatchFile(lines)) {
       return 'patch';
@@ -263,6 +273,8 @@ export function categorizeFiles(filesWithTypes) {
     particlesInfo: null,
     patchesInfo: null,
     patchFiles: [],
+    mglFile: null,
+    mglTrajectory: null,
     unknown: []
   };
 
@@ -286,6 +298,12 @@ export function categorizeFiles(filesWithTypes) {
         break;
       case 'patch':
         categorized.patchFiles.push(file);
+        break;
+      case 'mgl':
+        categorized.mglFile = file;
+        break;
+      case 'mgl-trajectory':
+        categorized.mglTrajectory = file;
         break;
       default:
         categorized.unknown.push(file);
@@ -380,4 +398,104 @@ export async function analyzeFiles(files) {
   }
   
   return results;
+}
+
+/**
+ * Detects single MGL files by looking for characteristic MGL format
+ * @param {string[]} lines - Lines from the file
+ * @returns {boolean}
+ */
+function isMGLFile(lines) {
+  if (lines.length < 1) return false;
+
+  // Look for MGL format indicators:
+  // 1. Lines with '@' separator (x y z @ radius color...)
+  // 2. Color specifications with C[color] format
+  // 3. Patch data with 'M' indicators
+  
+  let mglLineCount = 0;
+  let hasValidMGLContent = false;
+  let boxCount = 0;
+
+  for (const line of lines.slice(0, 20)) {
+    // Count .Box: headers
+    if (line.startsWith('.Box:') || line.startsWith('.Vol:')) {
+      boxCount++;
+      hasValidMGLContent = true;
+      continue;
+    }
+    
+    // Check for MGL particle format: x y z @ radius C[color] ...
+    if (line.includes('@')) {
+      const parts = line.split('@');
+      if (parts.length === 2) {
+        // Check position part (should be 3 numbers)
+        const posTokens = parts[0].trim().split(/\s+/);
+        if (posTokens.length === 3 && posTokens.every(token => !isNaN(parseFloat(token)))) {
+          // Check radius/color part
+          const radiusColorPart = parts[1].trim().split(/\s+/);
+          if (radiusColorPart.length >= 2 && !isNaN(parseFloat(radiusColorPart[0]))) {
+            // Look for C[color] format or patch indicator 'M'
+            if (radiusColorPart.some(token => token.startsWith('C[') || token === 'M')) {
+              mglLineCount++;
+              hasValidMGLContent = true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If we have .Box: headers, this should be treated as a trajectory
+  // Return false here so it gets caught by isMGLTrajectoryFile
+  if (boxCount > 0) {
+    return false;
+  }
+
+  // Only return true for pure MGL content without .Box: headers
+  return hasValidMGLContent && mglLineCount >= 1;
+}
+
+/**
+ * Detects MGL trajectory files (multiple concatenated MGL files)
+ * @param {string[]} lines - Lines from the file
+ * @returns {boolean}
+ */
+function isMGLTrajectoryFile(lines) {
+  if (lines.length < 3) return false;
+
+  // Look for trajectory-specific patterns:
+  // 1. Multiple .Box: or .Vol: headers
+  // 2. MGL particle content with '@' format
+  
+  let boxOrVolCount = 0;
+  let hasMGLContent = false;
+
+  for (let i = 0; i < Math.min(lines.length, 100); i++) {
+    const line = lines[i];
+    
+    // Check for box/volume headers
+    if (/^\.Box:|^\.Vol:/.test(line)) {
+      boxOrVolCount++;
+    }
+    
+    // Check for MGL particle content with '@' separator
+    if (line.includes('@')) {
+      const parts = line.split('@');
+      if (parts.length === 2) {
+        const posTokens = parts[0].trim().split(/\s+/);
+        if (posTokens.length === 3 && posTokens.every(token => !isNaN(parseFloat(token)))) {
+          const radiusColorPart = parts[1].trim().split(/\s+/);
+          if (radiusColorPart.length >= 2 && !isNaN(parseFloat(radiusColorPart[0]))) {
+            hasMGLContent = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Consider it MGL trajectory if:
+  // - Has any .Box: or .Vol: headers AND has MGL content
+  // Each .Box: line represents a separate configuration/frame
+  return boxOrVolCount >= 1 && hasMGLContent;
 }
