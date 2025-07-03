@@ -30,64 +30,103 @@ ppview now supports MGL (Molecular Graphics Library) format files for visualizin
 
 ### Basic Syntax
 ```
-TYPE X Y Z RADIUS [type-specific-data] R G B [OPACITY]
+x y z @ r C[color] [type-specific-data]
 ```
 
-### Examples
+### Header Lines
+- `.Box:Lx,Ly,Lz` - Box dimensions (comma-separated)
+- `.Vol:TOT_VOLUME` - Cubic box volume
 
-#### Sphere (S)
-```
-S 0.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0
-```
-- Position: (0, 0, 0)
-- Radius: 1.0
-- Color: Red (RGB: 1.0, 0.0, 0.0)
-- Opacity: 1.0
+### Color Formats
+- Named colors: `C[red]`, `C[blue]`, `C[green]`, etc.
+- Hexadecimal: `C[#aaaaaa]`
+- RGBA: `C[0,1,0,1]` (last value is opacity)
 
-#### Patchy Particle (M)
-```
-M 0.0 2.0 0.0 1.0 2 1.0 0.0 0.0 1.0 0.0 0.0 -1.0 0.0 0.0 0.5 0.5 0.5 1.0
-```
-- Position: (0, 2, 0)
-- Radius: 1.0
-- Patch count: 2
-- Patch 1: Position (1.0, 0.0, 0.0), Color (1.0, 0.0, 0.0)
-- Patch 2: Position (-1.0, 0.0, 0.0), Color (0.0, 0.0, 0.0)
-- Particle color: Gray (0.5, 0.5, 0.5)
+### Particle Types
 
-#### Cylinder (C)
+#### Basic Sphere
 ```
-C 0.0 4.0 0.0 1.0 0.0 0.0 1.0 1.0 1.0 0.0 1.0
+1 3 5 @ 0.8 C[red]
 ```
-- Position: (0, 4, 0)
-- Radius: 1.0
-- Axis vector: (0, 0, 1)
-- Color: Yellow (1.0, 1.0, 0.0)
+- Position: (1, 3, 5)
+- Radius: 0.8
+- Color: Red
 
-#### Dipolar Sphere (D)
+#### Cylinder
 ```
-D 2.0 2.0 0.0 1.0 1.0 0.0 0.0 0.0 1.0 1.0 1.0
+7 3 5 @ 0.5 C[green] C 2 2 2
 ```
-- Position: (2, 2, 0)
-- Radius: 1.0
-- Dipole vector: (1.0, 0.0, 0.0)
-- Color: White (1.0, 1.0, 1.0)
+- Position: (7, 3, 5)
+- Radius: 0.5
+- Color: Green
+- Axis vector: (2, 2, 2)
+- Length: sqrt(2² + 2² + 2²) = ~3.46
 
-### Multiple Shapes per Line
+#### Dipolar Sphere
 ```
-S 0.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0 G S 2.0 0.0 0.0 1.0 0.0 1.0 0.0 1.0
+5 7 5 @ 0.3 C[0,0,1,0.5] D 1 0 0 C[black]
 ```
-Two spheres separated by 'G' on the same line.
+- Position: (5, 7, 5)
+- Radius: 0.3
+- Color: Blue with 50% opacity
+- Dipole vector: (1, 0, 0)
+- Arrow color: Black
+
+#### Patchy Particle
+```
+3 5 5 @ 0.5 C[magenta] M 0 0 0.6 0.8 C[0,0,0.5] 0.3 0.5 0 0.55 C[1,0.5,0.3]
+```
+- Position: (3, 5, 5)
+- Radius: 0.5
+- Color: Magenta
+- Patch 1: Position (0, 0, 0.6), Half-width 0.8 rad, Color dark blue
+- Patch 2: Position (0.3, 0.5, 0), Half-width 0.55 rad, Color orange
+
+#### Icosahedron
+```
+1 1 1 @ 0.8 C[cyan] I x1 x2 x3 z1 z2 z3
+```
+- Position: (1, 1, 1)
+- Radius: 0.8
+- Color: Cyan
+- X-axis: (x1, x2, x3)
+- Z-axis: (z1, z2, z3)
+
+#### Ellipsoid
+```
+2 2 2 @ 1.0 C[yellow] E sa1 sa2 sa3 a11 a12 a13 a21 a22 a23
+```
+- Position: (2, 2, 2)
+- Radius: 1.0 (scale factor)
+- Color: Yellow
+- Semi-axes: (sa1, sa2, sa3)
+- Axis 1: (a11, a12, a13)
+- Axis 2: (a21, a22, a23)
+
+### Grouped Shapes
+```
+1 1 1 @ 0.8 C[red] G 1 2 1 @ 0.8 C[blue] G 1 3 1 @ 0.8 C[green]
+```
+Three spheres grouped together with the same ID, separated by 'G'.
 
 ### Trajectory Format
 ```
-.Box: 10.0 10.0 10.0
-S 0.0 0.0 0.0 1.0 1.0 0.0 0.0 1.0
-S 2.0 0.0 0.0 1.0 0.0 1.0 0.0 1.0
+.Box:8,8,8
+1 3 5 @ 0.8 C[red]
+7 3 5 @ 0.5 C[green] C 2 2 2
 
-.Box: 10.0 10.0 10.0  
-S 0.0 1.0 0.0 1.0 1.0 0.0 0.0 1.0
-S 2.0 1.0 0.0 1.0 0.0 1.0 0.0 1.0
+.Box:8,8,8
+1 3 6 @ 0.8 C[red]
+7 3 6 @ 0.5 C[green] C 2 2 2
+```
+
+### Complete Example
+```
+.Box:8,8,8
+1 3 5 @ 0.8 C[red]
+7 3 5 @ 0.5 C[green] C 2 2 2
+5 7 5 @ 0.3 C[0,0,1,0.5] D 1 0 0 C[black]
+3 5 5 @ 0.5 C[magenta] M 0 0 0.6 0.8 C[0,0,0.5] 0.3 0.5 0 0.55 C[1,0.5,0.3]
 ```
 
 ## Usage in ppview

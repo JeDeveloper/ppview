@@ -27,28 +27,54 @@ const MGL_COLORS = {
 
 /**
  * Parses MGL color from string format
- * @param {string} colorStr - Color string (e.g., "C[blue]", "red", or RGB values)
+ * @param {string} colorStr - Color string (e.g., "C[blue]", "C[#aaaaaa]", "C[0,1,0,1]", or direct color names)
  * @returns {object} - Color object with r, g, b, opacity
  */
 function materialFromMGLColor(colorStr) {
   if (!colorStr) return { r: 0.5, g: 0.5, b: 0.5, opacity: 1.0 };
   
-  // Handle C[colorname] format
+  // Handle C[...] format
   const colorMatch = colorStr.match(/C\[([^\]]+)\]/);
   if (colorMatch) {
-    const colorName = colorMatch[1].toLowerCase();
+    const colorContent = colorMatch[1];
+    
+    // Check for hexadecimal color (e.g., #aaaaaa)
+    if (colorContent.startsWith('#')) {
+      const hex = colorContent.substring(1);
+      if (hex.length === 6) {
+        const r = parseInt(hex.substring(0, 2), 16) / 255;
+        const g = parseInt(hex.substring(2, 4), 16) / 255;
+        const b = parseInt(hex.substring(4, 6), 16) / 255;
+        return { r, g, b, opacity: 1.0 };
+      }
+    }
+    
+    // Check for RGBA format (e.g., 0,1,0,1)
+    if (colorContent.includes(',')) {
+      const rgbaTokens = colorContent.split(',').map(s => parseFloat(s.trim()));
+      if (rgbaTokens.length >= 3 && rgbaTokens.every(v => !isNaN(v))) {
+        const r = Math.max(0, Math.min(1, rgbaTokens[0]));
+        const g = Math.max(0, Math.min(1, rgbaTokens[1]));
+        const b = Math.max(0, Math.min(1, rgbaTokens[2]));
+        const opacity = rgbaTokens.length >= 4 ? Math.max(0, Math.min(1, rgbaTokens[3])) : 1.0;
+        return { r, g, b, opacity };
+      }
+    }
+    
+    // Check for named color
+    const colorName = colorContent.toLowerCase();
     if (MGL_COLORS[colorName]) {
       return { ...MGL_COLORS[colorName], opacity: 1.0 };
     }
   }
   
-  // Handle direct color name
+  // Handle direct color name (without C[...])
   const directColor = colorStr.toLowerCase();
   if (MGL_COLORS[directColor]) {
     return { ...MGL_COLORS[directColor], opacity: 1.0 };
   }
   
-  // Handle RGB values
+  // Handle space-separated RGB/RGBA values
   const tokens = colorStr.split(/\s+/);
   if (tokens.length >= 3) {
     const r = parseFloat(tokens[0]);
@@ -84,13 +110,42 @@ export function readMGL(content) {
   };
   
   lines.forEach(line => {
-    // Skip .Box: headers in single MGL files
-    if (line.startsWith('.Box:') || line.startsWith('.Vol:')) return;
+    // Parse .Box: or .Vol: header for box dimensions
+    if (line.startsWith('.Box:')) {
+      const boxDataStr = line.substring(5).trim();
+      const tokens = boxDataStr.split(',');
+      if (tokens.length === 3) {
+        const dims = tokens.map(t => parseFloat(t.trim())).filter(n => !isNaN(n));
+        if (dims.length === 3) {
+          boundingBox = {
+            min: { x: 0, y: 0, z: 0 },
+            max: { x: dims[0], y: dims[1], z: dims[2] }
+          };
+        }
+      }
+      return;
+    }
     
-    const particle = parseMGLLine(line);
-    if (particle) {
-      particles.push(particle);
-      updateBoundingBox(boundingBox, particle.position);
+    if (line.startsWith('.Vol:')) {
+      const volumeStr = line.substring(5).trim();
+      const volume = parseFloat(volumeStr);
+      if (!isNaN(volume)) {
+        const side = Math.cbrt(volume);
+        boundingBox = {
+          min: { x: 0, y: 0, z: 0 },
+          max: { x: side, y: side, z: side }
+        };
+      }
+      return;
+    }
+    
+    const shapes = parseMGLLine(line);
+    if (shapes) {
+      // Handle grouped shapes (separated by G)
+      shapes.forEach(particle => {
+        particles.push(particle);
+        updateBoundingBox(boundingBox, particle.position);
+      });
     }
   });
 
@@ -136,16 +191,22 @@ export function readMGLTrajectory(content) {
         frameIndex: frames.length
       };
       
-      // Parse box dimensions from header (handle both comma and space separated)
-      const boxDataStr = line.substring(line.indexOf(':') + 1).trim();
-      const dimensionTokens = boxDataStr.includes(',') 
-        ? boxDataStr.split(',').map(s => s.trim())
-        : boxDataStr.split(/\s+/);
-      
-      if (dimensionTokens.length >= 3) {
-        const dims = dimensionTokens.map(s => parseFloat(s)).filter(n => !isNaN(n));
-        if (dims.length >= 3) {
-          currentFrame.boxDimensions = [dims[0], dims[1], dims[2]];
+      // Parse box dimensions from header
+      if (line.startsWith('.Box:')) {
+        const boxDataStr = line.substring(5).trim();
+        const tokens = boxDataStr.split(',');
+        if (tokens.length === 3) {
+          const dims = tokens.map(t => parseFloat(t.trim())).filter(n => !isNaN(n));
+          if (dims.length === 3) {
+            currentFrame.boxDimensions = dims;
+          }
+        }
+      } else if (line.startsWith('.Vol:')) {
+        const volumeStr = line.substring(5).trim();
+        const volume = parseFloat(volumeStr);
+        if (!isNaN(volume)) {
+          const side = Math.cbrt(volume);
+          currentFrame.boxDimensions = [side, side, side];
         }
       }
       continue;
@@ -163,14 +224,17 @@ export function readMGLTrajectory(content) {
     
     // Parse particle data
     if (line.length > 0) {
-      const particle = parseMGLLine(line);
-      if (particle) {
-        // Add frame-specific metadata
-        particle.frameIndex = currentFrame.frameIndex;
-        currentFrame.particles.push(particle);
-        
-        // Update global bounding box
-        updateBoundingBox(boundingBox, particle.position);
+      const shapes = parseMGLLine(line);
+      if (shapes) {
+        // Handle grouped shapes (separated by G)
+        shapes.forEach(particle => {
+          // Add frame-specific metadata
+          particle.frameIndex = currentFrame.frameIndex;
+          currentFrame.particles.push(particle);
+          
+          // Update global bounding box
+          updateBoundingBox(boundingBox, particle.position);
+        });
       }
     }
   }
@@ -189,16 +253,39 @@ export function readMGLTrajectory(content) {
 }
 
 /**
- * Parses a single MGL line with actual MGL format
- * Format: x y z @ radius C[color] M patch_data...
+ * Parses a single MGL line with new MGL format
+ * Format: x y z @ radius C[color] [type-specific data]
+ * Supports groups separated by 'G'
  * @param {string} line - MGL line string
- * @returns {object|null} - Parsed particle object or null if invalid
+ * @returns {Array|null} - Array of parsed particle objects or null if invalid
  */
 function parseMGLLine(line) {
   if (!line || line.trim() === '') return null;
   
-  // Split by '@' to separate position from radius/color/patches
-  const parts = line.split('@');
+  // Split by 'G' to handle grouped shapes
+  const shapes = line.split(' G ').map(s => s.trim());
+  const particles = [];
+  
+  for (const shapeStr of shapes) {
+    const particle = parseSingleMGLShape(shapeStr);
+    if (particle) {
+      particles.push(particle);
+    }
+  }
+  
+  return particles.length > 0 ? particles : null;
+}
+
+/**
+ * Parses a single MGL shape according to the new specification
+ * @param {string} shapeStr - Single shape string
+ * @returns {object|null} - Parsed particle object or null if invalid
+ */
+function parseSingleMGLShape(shapeStr) {
+  if (!shapeStr || shapeStr.trim() === '') return null;
+  
+  // Split by '@' to separate position from radius/color/type-specific data
+  const parts = shapeStr.split('@');
   if (parts.length !== 2) return null;
   
   // Parse position (x y z)
@@ -211,18 +298,19 @@ function parseMGLLine(line) {
   
   if (isNaN(x) || isNaN(y) || isNaN(z)) return null;
   
-  // Parse radius, color, and patches
-  const radiusColorPatchPart = parts[1].trim().split(/\s+/);
-  if (radiusColorPatchPart.length < 2) return null;
+  // Parse radius, color, and type-specific data
+  const tokens = parts[1].trim().split(/\s+/);
+  if (tokens.length < 2) return null;
   
-  const radius = parseFloat(radiusColorPatchPart[0]);
+  const radius = parseFloat(tokens[0]);
   if (isNaN(radius)) return null;
   
-  const colorToken = radiusColorPatchPart[1];
+  const colorToken = tokens[1];
   const color = materialFromMGLColor(colorToken);
   
+  // Base particle object
   const particle = {
-    type: 'M', // All particles in this format appear to be patchy
+    type: 'sphere', // Default type
     position: { x, y, z },
     radius,
     color,
@@ -230,37 +318,113 @@ function parseMGLLine(line) {
     properties: {}
   };
   
-  // Parse patches (look for 'M' followed by patch data)
+  // Check for type-specific indicators and parse accordingly
   let i = 2;
-  while (i < radiusColorPatchPart.length) {
-    if (radiusColorPatchPart[i] === 'M') {
-      i++; // Move past 'M'
-      // Parse all consecutive patches after 'M'
-      while (i + 4 < radiusColorPatchPart.length) {
-        // Try to parse patch: x y z radius color
-        const patchX = parseFloat(radiusColorPatchPart[i]);
-        const patchY = parseFloat(radiusColorPatchPart[i + 1]);
-        const patchZ = parseFloat(radiusColorPatchPart[i + 2]);
-        const patchRadius = parseFloat(radiusColorPatchPart[i + 3]);
-        const patchColorToken = radiusColorPatchPart[i + 4];
+  while (i < tokens.length) {
+    const token = tokens[i];
+    
+    if (token === 'C') {
+      // Cylinder: C ax ay az
+      particle.type = 'cylinder';
+      if (i + 3 < tokens.length) {
+        const ax = parseFloat(tokens[i + 1]);
+        const ay = parseFloat(tokens[i + 2]);
+        const az = parseFloat(tokens[i + 3]);
+        if (!isNaN(ax) && !isNaN(ay) && !isNaN(az)) {
+          particle.axis = { x: ax, y: ay, z: az };
+          particle.length = Math.sqrt(ax*ax + ay*ay + az*az);
+        }
+        i += 4;
+      } else {
+        i++;
+      }
+    } else if (token === 'D') {
+      // Dipolar sphere: D dx dy dz C[arrow_color]
+      particle.type = 'dipolar';
+      if (i + 3 < tokens.length) {
+        const dx = parseFloat(tokens[i + 1]);
+        const dy = parseFloat(tokens[i + 2]);
+        const dz = parseFloat(tokens[i + 3]);
+        if (!isNaN(dx) && !isNaN(dy) && !isNaN(dz)) {
+          particle.dipole = { x: dx, y: dy, z: dz };
+        }
+        i += 4;
+        // Parse arrow color if present
+        if (i < tokens.length && tokens[i].startsWith('C[')) {
+          particle.arrowColor = materialFromMGLColor(tokens[i]);
+          i++;
+        }
+      } else {
+        i++;
+      }
+    } else if (token === 'M') {
+      // Patchy particle: M p1x p1y p1z p1w C[p1color] p2x p2y p2z p2w C[p2color] ...
+      particle.type = 'patchy';
+      i++;
+      while (i + 4 < tokens.length) {
+        const px = parseFloat(tokens[i]);
+        const py = parseFloat(tokens[i + 1]);
+        const pz = parseFloat(tokens[i + 2]);
+        const pw = parseFloat(tokens[i + 3]);
+        const patchColorToken = tokens[i + 4];
         
-        // Check if this looks like valid patch data
-        if (!isNaN(patchX) && !isNaN(patchY) && !isNaN(patchZ) && !isNaN(patchRadius) && patchColorToken && patchColorToken.startsWith('C[')) {
+        if (!isNaN(px) && !isNaN(py) && !isNaN(pz) && !isNaN(pw) && patchColorToken && patchColorToken.startsWith('C[')) {
           const patch = {
-            position: { x: patchX, y: patchY, z: patchZ },
-            radius: patchRadius,
+            position: { x: px, y: py, z: pz },
+            halfWidth: pw, // in radians
             color: materialFromMGLColor(patchColorToken),
             patchId: particle.patches.length
           };
           particle.patches.push(patch);
-          i += 5; // Move past this patch (x, y, z, radius, color)
+          i += 5;
         } else {
-          // Not valid patch data, stop parsing patches
           break;
         }
       }
+    } else if (token === 'I') {
+      // Icosahedron: I x1 x2 x3 z1 z2 z3
+      particle.type = 'icosahedron';
+      if (i + 6 < tokens.length) {
+        const x1 = parseFloat(tokens[i + 1]);
+        const x2 = parseFloat(tokens[i + 2]);
+        const x3 = parseFloat(tokens[i + 3]);
+        const z1 = parseFloat(tokens[i + 4]);
+        const z2 = parseFloat(tokens[i + 5]);
+        const z3 = parseFloat(tokens[i + 6]);
+        
+        if ([x1, x2, x3, z1, z2, z3].every(v => !isNaN(v))) {
+          particle.xAxis = { x: x1, y: x2, z: x3 };
+          particle.zAxis = { x: z1, y: z2, z: z3 };
+        }
+        i += 7;
+      } else {
+        i++;
+      }
+    } else if (token === 'E') {
+      // Ellipsoid: E sa1 sa2 sa3 a11 a12 a13 a21 a22 a23
+      particle.type = 'ellipsoid';
+      if (i + 9 < tokens.length) {
+        const sa1 = parseFloat(tokens[i + 1]);
+        const sa2 = parseFloat(tokens[i + 2]);
+        const sa3 = parseFloat(tokens[i + 3]);
+        const a11 = parseFloat(tokens[i + 4]);
+        const a12 = parseFloat(tokens[i + 5]);
+        const a13 = parseFloat(tokens[i + 6]);
+        const a21 = parseFloat(tokens[i + 7]);
+        const a22 = parseFloat(tokens[i + 8]);
+        const a23 = parseFloat(tokens[i + 9]);
+        
+        if ([sa1, sa2, sa3, a11, a12, a13, a21, a22, a23].every(v => !isNaN(v))) {
+          particle.semiAxes = { x: sa1, y: sa2, z: sa3 };
+          particle.axis1 = { x: a11, y: a12, z: a13 };
+          particle.axis2 = { x: a21, y: a22, z: a23 };
+        }
+        i += 10;
+      } else {
+        i++;
+      }
     } else {
-      i++; // Move to next token
+      i++;
     }
   }
   

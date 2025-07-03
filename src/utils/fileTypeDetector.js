@@ -409,23 +409,23 @@ function isMGLFile(lines) {
   if (lines.length < 1) return false;
 
   // Look for MGL format indicators:
-  // 1. Lines with '@' separator (x y z @ radius color...)
+  // 1. Lines with '@' separator (x y z @ radius C[color] ...)
   // 2. Color specifications with C[color] format
-  // 3. Patch data with 'M' indicators
+  // 3. Type indicators: C, D, M, I, E after color
   
   let mglLineCount = 0;
   let hasValidMGLContent = false;
   let boxCount = 0;
 
   for (const line of lines.slice(0, 20)) {
-    // Count .Box: headers
+    // Count .Box: or .Vol: headers
     if (line.startsWith('.Box:') || line.startsWith('.Vol:')) {
       boxCount++;
       hasValidMGLContent = true;
       continue;
     }
     
-    // Check for MGL particle format: x y z @ radius C[color] ...
+    // Check for MGL particle format: x y z @ radius C[color] [type-specific data]
     if (line.includes('@')) {
       const parts = line.split('@');
       if (parts.length === 2) {
@@ -435,8 +435,11 @@ function isMGLFile(lines) {
           // Check radius/color part
           const radiusColorPart = parts[1].trim().split(/\s+/);
           if (radiusColorPart.length >= 2 && !isNaN(parseFloat(radiusColorPart[0]))) {
-            // Look for C[color] format or patch indicator 'M'
-            if (radiusColorPart.some(token => token.startsWith('C[') || token === 'M')) {
+            // Look for C[color] format or type indicators (C, D, M, I, E)
+            if (radiusColorPart.some(token => 
+              token.startsWith('C[') || 
+              ['C', 'D', 'M', 'I', 'E'].includes(token)
+            )) {
               mglLineCount++;
               hasValidMGLContent = true;
             }
@@ -446,13 +449,13 @@ function isMGLFile(lines) {
     }
   }
 
-  // If we have .Box: headers, this should be treated as a trajectory
+  // If we have .Box: or .Vol: headers, this should be treated as a trajectory
   // Return false here so it gets caught by isMGLTrajectoryFile
   if (boxCount > 0) {
     return false;
   }
 
-  // Only return true for pure MGL content without .Box: headers
+  // Only return true for pure MGL content without .Box: or .Vol: headers
   return hasValidMGLContent && mglLineCount >= 1;
 }
 
@@ -462,10 +465,10 @@ function isMGLFile(lines) {
  * @returns {boolean}
  */
 function isMGLTrajectoryFile(lines) {
-  if (lines.length < 3) return false;
+  if (lines.length < 1) return false;
 
   // Look for trajectory-specific patterns:
-  // 1. Multiple .Box: or .Vol: headers
+  // 1. .Box: or .Vol: headers (even just one makes it a trajectory)
   // 2. MGL particle content with '@' format
   
   let boxOrVolCount = 0;
@@ -487,7 +490,13 @@ function isMGLTrajectoryFile(lines) {
         if (posTokens.length === 3 && posTokens.every(token => !isNaN(parseFloat(token)))) {
           const radiusColorPart = parts[1].trim().split(/\s+/);
           if (radiusColorPart.length >= 2 && !isNaN(parseFloat(radiusColorPart[0]))) {
-            hasMGLContent = true;
+            // Look for C[color] format or type indicators
+            if (radiusColorPart.some(token => 
+              token.startsWith('C[') || 
+              ['C', 'D', 'M', 'I', 'E'].includes(token)
+            )) {
+              hasMGLContent = true;
+            }
           }
         }
       }
@@ -495,7 +504,7 @@ function isMGLTrajectoryFile(lines) {
   }
 
   // Consider it MGL trajectory if:
-  // - Has any .Box: or .Vol: headers AND has MGL content
-  // Each .Box: line represents a separate configuration/frame
-  return boxOrVolCount >= 1 && hasMGLContent;
+  // - Has any .Box: or .Vol: headers (even one header makes it a trajectory)
+  // - OR has valid MGL content with potential for multiple frames
+  return boxOrVolCount >= 1 || (hasMGLContent && boxOrVolCount >= 0);
 }
