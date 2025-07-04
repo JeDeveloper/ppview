@@ -1,4 +1,4 @@
-# PPView - Particle Physics Viewer
+# PPView - Patchy Particle Viewer
 
 A React-based visualization tool for molecular dynamics simulations, specifically designed for oxDNA systems. This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
