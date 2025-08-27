@@ -573,16 +573,19 @@ function App() {
     }
   };
 
-  // Function to parse Lorenzo's topology
+  // Function to parse Lorenzo's topology (following initLoroSpecies logic)
   const parseLorenzoTopology = async (lines, fileMap) => {
     const headerTokens = lines[0].trim().split(/\s+/).map(Number);
     const totalParticles = headerTokens[0];
     const typeCount = headerTokens[1];
-    const particleTypes = [];
-
-    let cumulativeCount = 0;
+    
+    // Create particles array with types following initLoroSpecies pattern
+    const particles = [];
+    const patchSpecs = [];
     const patchFileCache = new Map();
-
+    
+    // Parse topology lines to build particle type assignments
+    let particleIndex = 0;
     for (let i = 1; i <= typeCount; i++) {
       const line = lines[i];
       const tokens = line.trim().split(/\s+/);
@@ -590,46 +593,103 @@ function App() {
       const patchCount = Number(tokens[1]);
       const patches = tokens[2] ? tokens[2].split(",").map(Number) : [];
       const fileName = tokens[3] ? tokens[3].trim() : "";
-      cumulativeCount += count;
-
-      const particleType = {
-        typeIndex: i - 1, // Assign typeIndex starting from 0
-        count: count,
-        cumulativeCount: cumulativeCount,
-        patchCount: patchCount,
-        patches: patches || [], // Ensure patches is always an array
-        fileName,
-        patchPositions: [],
-      };
-
-
-      // Read the patch file if provided and if patches are specified
-      if (fileName && patchCount > 0 && patches.length > 0) {
-        if (patchFileCache.has(fileName)) {
-          // Use cached patch positions
-          particleType.patchPositions = patchFileCache.get(fileName);
-        } else if (fileMap.has(fileName)) {
-          try {
-            const patchFile = fileMap.get(fileName);
-            const patchContent = await patchFile.text();
-            const patchPositions = parsePatchFile(patchContent);
-            if (patchPositions && patchPositions.length > 0) {
-              particleType.patchPositions = patchPositions;
-              patchFileCache.set(fileName, patchPositions);
+      
+      // Create particles for this type following initLoroSpecies pattern
+      for (let j = 0; j < count; j++) {
+        particles.push({
+          type: (i - 1).toString(), // Convert to string to match initLoroSpecies
+          patchSpec: fileName || '' // Store patchSpec (filename) for each particle
+        });
+        particleIndex++;
+      }
+      
+      // Store patchSpec for this type
+      patchSpecs[i - 1] = fileName || '';
+    }
+    
+    // Following initLoroSpecies: const types = this.particles.map(p=>parseInt(p.type))
+    const types = particles.map(p => parseInt(p.type));
+    
+    // Following initLoroSpecies: count instances of each type
+    const instanceCounts = [];
+    types.forEach((s, i) => {
+      if (instanceCounts[s] === undefined) {
+        instanceCounts[s] = 1;
+      } else {
+        instanceCounts[s]++;
+      }
+    });
+    
+    // Create patchStrMap equivalent by loading patch files
+    const patchStrMap = new Map();
+    
+    // Load all unique patch files
+    const uniquePatchSpecs = [...new Set(patchSpecs)].filter(spec => spec && spec.trim() !== '');
+    
+    for (const patchSpec of uniquePatchSpecs) {
+      if (fileMap.has(patchSpec)) {
+        try {
+          const patchFile = fileMap.get(patchSpec);
+          const patchContent = await patchFile.text();
+          patchStrMap.set(patchSpec, patchContent.trim());
+        } catch (error) {
+          console.warn(`Error reading patch file '${patchSpec}':`, error);
+          patchStrMap.set(patchSpec, '');
+        }
+      } else {
+        console.warn(`Patch file '${patchSpec}' not found`);
+        patchStrMap.set(patchSpec, '');
+      }
+    }
+    
+    // Following initLoroSpecies: create species array
+    const particleTypes = [...new Set(types)].map(s => {
+      const patchSpec = patchSpecs[s];
+      let patchPositions = [];
+      let patches = [];
+      
+      if (patchSpec && patchStrMap.has(patchSpec)) {
+        const patchStrs = patchStrMap.get(patchSpec);
+        if (patchStrs && patchStrs.trim() !== '') {
+          // Following initLoroSpecies: parse patch strings
+          const patchLines = patchStrs.split('\n').filter(line => line.trim() !== '');
+          patchPositions = patchLines.map((vs, index) => {
+            const coords = vs.trim().split(/ +/g).map(v => parseFloat(v));
+            if (coords.length >= 3 && !coords.some(isNaN)) {
+              const pos = new THREE.Vector3().fromArray(coords);
+              return {
+                x: pos.x,
+                y: pos.y,
+                z: pos.z,
+                // Following initLoroSpecies: a1 and a2 are normalized position vectors
+                a1: { 
+                  x: pos.clone().normalize().x,
+                  y: pos.clone().normalize().y,
+                  z: pos.clone().normalize().z
+                },
+                a2: {
+                  x: pos.clone().normalize().x,
+                  y: pos.clone().normalize().y,
+                  z: pos.clone().normalize().z
+                },
+                patchId: index // Assign sequential patch IDs
+              };
             }
-          } catch (error) {
-            console.warn(`Error reading patch file '${fileName}':`, error);
-            particleType.patchPositions = [];
-          }
-        } else {
-          console.warn(
-            `Patch file '${fileName}' not found for particle type ${i}`,
-          );
+            return null;
+          }).filter(Boolean);
+          
+          // Create patches array with sequential IDs
+          patches = patchPositions.map((_, index) => index);
         }
       }
-
-      particleTypes.push(particleType);
-    }
+      
+      return {
+        typeIndex: s,
+        count: instanceCounts[s] || 0,
+        patches: patches,
+        patchPositions: patchPositions
+      };
+    });
 
     return { totalParticles, typeCount, particleTypes };
   };
@@ -692,7 +752,7 @@ function App() {
       // Proceed without patchesData
     }
 
-    // Build particle types array
+    // Build particle types array (following initSpecies pattern)
     Object.keys(typeCounts).forEach((typeIndex) => {
       const count = typeCounts[typeIndex];
       let patches = [];
@@ -711,10 +771,28 @@ function App() {
           }
         });
 
-        // Convert to arrays and get positions
+        // Map patch IDs to patch objects following initSpecies pattern
         patches = Array.from(uniquePatchIds);
+        
+        // Create patch positions array with the patch data
+        // Following initSpecies logic: particle['patches'] = particle['patches'].map(id=>patches.get(id))
         patchPositions = patches
-          .map((patchId) => patchesData[patchId]?.position)
+          .map((patchId) => {
+            const patchData = patchesData[patchId];
+            if (patchData && patchData.position) {
+              return {
+                x: patchData.position.x,
+                y: patchData.position.y,
+                z: patchData.position.z,
+                // Include additional patch data for compatibility
+                patchId: patchId,
+                color: patchData.color,
+                a1: patchData.a1,
+                a2: patchData.a2
+              };
+            }
+            return null;
+          })
           .filter(Boolean);
 
         console.log(`Type ${typeIndex}: Found ${patches.length} unique patches, ${patchPositions.length} valid positions`);
@@ -742,84 +820,118 @@ function App() {
     return { totalParticles, typeCount, particleTypes };
   };
 
-  // Function to parse particle.txt
-  const parseParticleTxt = (content) => {
-    const lines = content.trim().split("\n");
-    const particlesData = [];
-
-    let currentParticle = null;
-
-    lines.forEach((line) => {
-      line = line.trim();
-      if (line.startsWith("particle_")) {
-        if (currentParticle) {
-          particlesData.push(currentParticle);
-        }
-        currentParticle = { patches: [] };
-      } else if (line.startsWith("type =")) {
-        currentParticle.type = Number(line.split("=")[1].trim());
-      } else if (line.startsWith("patches =")) {
-        const patchesStr = line.split("=")[1].trim();
-        currentParticle.patches = patchesStr.split(",").map(Number);
-      }
-    });
-
-    if (currentParticle) {
-      particlesData.push(currentParticle);
+  // Helper functions for Flavio format parsing (following initSpecies pattern)
+  const getScalar = (name, s) => {
+    const m = s.match(new RegExp(`${name}=(-?\\d+)`));
+    if (m) {
+      return parseFloat(m[1]);
     }
-
-    return particlesData;
+    return false;
   };
 
-  // Function to parse patches.txt
-  const parsePatchesTxt = (content) => {
-    const lines = content.trim().split("\n");
-    const patchesData = {};
-
-    let currentPatch = null;
-    lines.forEach((line) => {
-      line = line.trim();
-      if (line.startsWith("patch_")) {
-        if (currentPatch) {
-          patchesData[currentPatch.id] = currentPatch;
-        }
-        currentPatch = {};
-      } else if (line.startsWith("id =")) {
-        currentPatch.id = Number(line.split("=")[1].trim());
-      } else if (line.startsWith("color =")) {
-        currentPatch.color = Number(line.split("=")[1].trim());
-      } else if (line.startsWith("strength =")) {
-        currentPatch.strength = Number(line.split("=")[1].trim());
-      } else if (line.startsWith("position =")) {
-        const positionStr = line.split("=")[1].trim();
-        // Handle both comma-separated and space-separated coordinates
-        const coords = positionStr.includes(",") 
-          ? positionStr.split(",").map(s => s.trim()).map(Number)
-          : positionStr.split(/\s+/).map(Number);
-        const [x, y, z] = coords;
-        currentPatch.position = { x, y, z };
-      } else if (line.startsWith("a1=") || line.startsWith("a1 =")) {
-        const a1Str = line.split("=")[1].trim();
-        // Handle both comma-separated and space-separated coordinates
-        const coords = a1Str.includes(",") 
-          ? a1Str.split(",").map(s => s.trim()).map(Number)
-          : a1Str.split(/\s+/).map(Number);
-        const [x, y, z] = coords;
-        currentPatch.a1 = { x, y, z };
-      } else if (line.startsWith("a2=") || line.startsWith("a2 =")) {
-        const a2Str = line.split("=")[1].trim();
-        // Handle both comma-separated and space-separated coordinates
-        const coords = a2Str.includes(",") 
-          ? a2Str.split(",").map(s => s.trim()).map(Number)
-          : a2Str.split(/\s+/).map(Number);
-        const [x, y, z] = coords;
-        currentPatch.a2 = { x, y, z };
-      }
-    });
-
-    if (currentPatch) {
-      patchesData[currentPatch.id] = currentPatch;
+  const getArray = (name, s) => {
+    const m = s.match(new RegExp(`${name}=([\\,\\d\\.\\-\\+]+)`));
+    if (m) {
+      return m[1].split(',').map((v) => parseFloat(v));
     }
+    return false;
+  };
+
+  // Function to parse particle.txt (following initSpecies logic)
+  const parseParticleTxt = (content) => {
+    // Remove whitespace following initSpecies pattern
+    const particlesStr = content.replaceAll(' ', '');
+    const particles = [];
+    let currentParticle = null;
+
+    for (const line of particlesStr.split('\n')) {
+      const particleID = line.match(/particle_(\d+)/);
+      if (particleID) {
+        if (currentParticle) {
+          particles.push(currentParticle);
+        }
+        currentParticle = { 'id': parseInt(particleID[1]) };
+      }
+      
+      const type = getScalar('type', line);
+      if (type !== false) {
+        currentParticle['type'] = type;
+      }
+      
+      const patches = getArray('patches', line);
+      if (patches !== false) {
+        currentParticle['patches'] = patches;
+      }
+    }
+    
+    if (currentParticle) {
+      particles.push(currentParticle);
+    }
+
+    return particles;
+  };
+
+  // Function to parse patches.txt (following initSpecies logic)
+  const parsePatchesTxt = (content) => {
+    // Remove whitespace following initSpecies pattern
+    const patchesStr = content.replaceAll(' ', '');
+    const patches = new Map();
+    let currentId;
+
+    for (const line of patchesStr.split('\n')) {
+      const patchID = line.match(/patch_(\d+)/);
+      if (patchID) {
+        currentId = parseInt(patchID[1]);
+        patches.set(currentId, {});
+      }
+      
+      const color = getScalar('color', line);
+      if (color !== false) {
+        patches.get(currentId)['color'] = color;
+      }
+      
+      // Handle position, a1, and a2 arrays
+      for (const k of ['position', 'a1', 'a2']) {
+        const a = getArray(k, line);
+        if (a) {
+          // Convert to THREE.Vector3 following initSpecies pattern
+          const v = new THREE.Vector3().fromArray(a);
+          
+          // Apply abs() to a1 and a2 vectors for Flavio format orientation handling
+          if (k === 'a1' || k === 'a2') {
+            v.x = Math.abs(v.x);
+            v.y = Math.abs(v.y);
+            v.z = Math.abs(v.z);
+          }
+          
+          patches.get(currentId)[k] = v;
+        }
+      }
+    }
+
+    // Convert Map to object for compatibility with existing code
+    const patchesData = {};
+    patches.forEach((patch, id) => {
+      patchesData[id] = {
+        id: id,
+        color: patch.color || 0,
+        position: patch.position ? {
+          x: patch.position.x,
+          y: patch.position.y,
+          z: patch.position.z
+        } : null,
+        a1: patch.a1 ? {
+          x: patch.a1.x,
+          y: patch.a1.y,
+          z: patch.a1.z
+        } : null,
+        a2: patch.a2 ? {
+          x: patch.a2.x,
+          y: patch.a2.y,
+          z: patch.a2.z
+        } : null
+      };
+    });
 
     return patchesData;
   };
