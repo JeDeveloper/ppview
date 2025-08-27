@@ -156,64 +156,113 @@ function Particles({
     }
   }, [particleData, colors]);
 
+  // Helper function to get normalized mouse coordinates relative to canvas
+  const getNormalizedMouseCoords = useCallback((event) => {
+    if (!gl?.domElement) return null;
+    
+    const canvas = gl.domElement;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Check if canvas has valid dimensions
+    if (rect.width <= 0 || rect.height <= 0) {
+      console.warn('Canvas has invalid dimensions for mouse coordinate calculation');
+      return null;
+    }
+    
+    // Calculate mouse position relative to canvas
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    // Check if click is within canvas bounds
+    if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
+      return null; // Click is outside canvas
+    }
+    
+    // Convert to normalized device coordinates (-1 to +1)
+    const pointer = new THREE.Vector2();
+    pointer.x = (x / rect.width) * 2 - 1;
+    pointer.y = -(y / rect.height) * 2 + 1;
+    
+    return pointer;
+  }, [gl]);
+
   // Memoize event handlers to prevent unnecessary re-creation
   const handleClick = useCallback((event) => {
+    if (!meshRef.current || !camera) return;
+    
+    const pointer = getNormalizedMouseCoords(event);
+    if (!pointer) return; // Invalid coordinates or click outside canvas
+    
     const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
     raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(meshRef.current);
+    
+    try {
+      const intersects = raycaster.intersectObject(meshRef.current);
 
-    if (intersects.length > 0) {
-      const instanceId = intersects[0].instanceId;
-
-      setSelectedParticles((prevSelected) => {
-        if (event.ctrlKey || event.metaKey) {
-          // If Ctrl or Command key is pressed, toggle selection of the particle
-          if (prevSelected.includes(instanceId)) {
-            // Deselect particle
-            return prevSelected.filter((id) => id !== instanceId);
-          } else {
-            // Select particle
-            return [...prevSelected, instanceId];
-          }
-        } else {
-          // If Ctrl is not pressed, select only this particle
-          return [instanceId];
+      if (intersects.length > 0) {
+        const instanceId = intersects[0].instanceId;
+        
+        // Validate instanceId is within valid range
+        if (instanceId >= 0 && instanceId < particleData.length) {
+          setSelectedParticles((prevSelected) => {
+            if (event.ctrlKey || event.metaKey) {
+              // If Ctrl or Command key is pressed, toggle selection of the particle
+              if (prevSelected.includes(instanceId)) {
+                // Deselect particle
+                return prevSelected.filter((id) => id !== instanceId);
+              } else {
+                // Select particle
+                return [...prevSelected, instanceId];
+              }
+            } else {
+              // If Ctrl is not pressed, select only this particle
+              return [instanceId];
+            }
+          });
         }
-      });
-    } else {
-      if (!event.ctrlKey && !event.metaKey) {
-        // If Ctrl is not pressed, clear selection
-        setSelectedParticles([]);
+      } else {
+        if (!event.ctrlKey && !event.metaKey) {
+          // If Ctrl is not pressed, clear selection
+          setSelectedParticles([]);
+        }
       }
+    } catch (error) {
+      console.warn('Error during particle selection:', error);
     }
-  }, [camera, setSelectedParticles]);
+  }, [camera, setSelectedParticles, getNormalizedMouseCoords, particleData.length]);
 
   const handleDoubleClick = useCallback((event) => {
+    if (!meshRef.current || !camera) return;
+    
+    const pointer = getNormalizedMouseCoords(event);
+    if (!pointer) return; // Invalid coordinates or click outside canvas
+    
     const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
     raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(meshRef.current);
+    
+    try {
+      const intersects = raycaster.intersectObject(meshRef.current);
 
-    if (intersects.length > 0) {
-      const instanceId = intersects[0].instanceId;
-      const particlePosition = particleData[instanceId]?.position;
-      
-      if (particlePosition && onParticleDoubleClick) {
-        onParticleDoubleClick(new THREE.Vector3(
-          particlePosition.x,
-          particlePosition.y,
-          particlePosition.z
-        ));
+      if (intersects.length > 0) {
+        const instanceId = intersects[0].instanceId;
+        
+        // Validate instanceId and get particle position
+        if (instanceId >= 0 && instanceId < particleData.length) {
+          const particlePosition = particleData[instanceId]?.position;
+          
+          if (particlePosition && onParticleDoubleClick) {
+            onParticleDoubleClick(new THREE.Vector3(
+              particlePosition.x,
+              particlePosition.y,
+              particlePosition.z
+            ));
+          }
+        }
       }
+    } catch (error) {
+      console.warn('Error during particle double-click:', error);
     }
-  }, [camera, particleData, onParticleDoubleClick]);
+  }, [camera, particleData, onParticleDoubleClick, getNormalizedMouseCoords]);
 
   // Raycaster for detecting clicks and double-clicks
   useEffect(() => {
