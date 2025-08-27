@@ -93,29 +93,40 @@ export const colorSchemes = {
     ]
   },
   oxview: {
-    name: 'oxView Nucleosides',
-    colors: [
-      '#4747B8', // A or K; Royal Blue
-      '#FFFF33', // G or C; Medium Yellow
-      '#8CFF8C', // C or A; Medium Green
-      '#FF3333', // T/U or T; Red
-      '#660000', // E; Dark Brown
-      '#FF7042', // S; Medium Orange
-      '#A00042', // D; Dark Rose
-      '#FF7C70', // N; Light Salmon
-      '#FF4C4C', // Q; Dark Salmon
-      '#7070FF', // H; Medium Blue
-      '#EBEBEB', // G; Light Grey
-      '#525252', // P; Dark Grey
-      '#00007C', // R; Dark Blue
-      '#5E005E', // V; Dark Purple
-      '#004C00', // I; Dark Green
-      '#455E45', // L; Olive Green
-      '#B8A042', // M; Light Brown
-      '#534C42', // F; Olive Grey
-      '#8C704C', // Y; Medium Brown
-      '#4F4600', // W; Olive Brown
-    ]
+    name: 'oxView Golden Angle',
+    // Use golden angle formula for distinct colors
+    generateColor: (number) => {
+      const hue = number * 137.508; // use golden angle approximation
+      // Convert HSL to hex for consistency with other schemes
+      const hslToHex = (h, s, l) => {
+        h = h % 360;
+        s = s / 100;
+        l = l / 100;
+        const c = (1 - Math.abs(2 * l - 1)) * s;
+        const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+        const m = l - c / 2;
+        let r, g, b;
+        if (0 <= h && h < 60) {
+          r = c; g = x; b = 0;
+        } else if (60 <= h && h < 120) {
+          r = x; g = c; b = 0;
+        } else if (120 <= h && h < 180) {
+          r = 0; g = c; b = x;
+        } else if (180 <= h && h < 240) {
+          r = 0; g = x; b = c;
+        } else if (240 <= h && h < 300) {
+          r = x; g = 0; b = c;
+        } else {
+          r = c; g = 0; b = x;
+        }
+        r = Math.round((r + m) * 255);
+        g = Math.round((g + m) * 255);
+        b = Math.round((b + m) * 255);
+        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+      };
+      return hslToHex(hue, 50, 65);
+    },
+    colors: [] // Will be populated dynamically
   }
 };
 
@@ -152,7 +163,22 @@ export const saveColorScheme = (schemeName) => {
 // Get colors for current scheme
 export const getParticleColors = (schemeName = null) => {
   const scheme = schemeName || getCurrentColorScheme();
-  return colorSchemes[scheme]?.colors || colorSchemes[DEFAULT_SCHEME].colors;
+  const colorScheme = colorSchemes[scheme] || colorSchemes[DEFAULT_SCHEME];
+  
+  // Handle dynamic color generation (like oxview golden angle)
+  if (colorScheme.generateColor && typeof colorScheme.generateColor === 'function') {
+    // For dynamic schemes, generate a reasonable number of colors
+    // This can be extended based on actual usage needs
+    const numColors = 50; // Generate 50 colors by default
+    const generatedColors = [];
+    for (let i = 0; i < numColors; i++) {
+      generatedColors.push(colorScheme.generateColor(i));
+    }
+    return generatedColors;
+  }
+  
+  // For static color schemes, return the colors array
+  return colorScheme.colors;
 };
 
 // Backward compatibility - this will use the current selected scheme
