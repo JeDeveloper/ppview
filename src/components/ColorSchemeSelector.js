@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { colorSchemes, getCurrentColorScheme, saveColorScheme, getParticleColors } from '../colors';
 import './ColorSchemeSelector.css';
 
-function ColorSchemeSelector({ onSchemeChange }) {
+function ColorSchemeSelector({ onSchemeChange, particleTypeCount = 10 }) {
   const [currentScheme, setCurrentScheme] = useState(getCurrentColorScheme());
   const [isOpen, setIsOpen] = useState(false);
 
@@ -24,8 +24,9 @@ function ColorSchemeSelector({ onSchemeChange }) {
   };
 
   const getColorsForPreview = (schemeName) => {
-    // Get colors for the scheme, handling both static and dynamic schemes
-    return getParticleColors(schemeName);
+    // Get colors for the scheme using the actual particle type count
+    // This ensures the preview reflects the actual colors used in the system
+    return getParticleColors(schemeName, particleTypeCount);
   };
 
   const ColorPreview = ({ schemeName, size = 12 }) => {

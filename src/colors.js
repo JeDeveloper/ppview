@@ -92,10 +92,16 @@ export const colorSchemes = {
       '#f9fb0e', // Bright Yellow
     ]
   },
+//
+//   function colorFromInt(number) {
+//    const hue = number * 137.508; // use golden angle approximation
+//    return new THREE.Color(`hsl(${hue},50%,65%)`);
+// }
   oxview: {
     name: 'oxView Golden Angle',
     // Use golden angle formula for distinct colors
     generateColor: (number) => {
+      //let cnumber = number + 0
       const hue = number * 137.508; // use golden angle approximation
       // Convert HSL to hex for consistency with other schemes
       const hslToHex = (h, s, l) => {
@@ -160,16 +166,16 @@ export const saveColorScheme = (schemeName) => {
   return false;
 };
 
-// Get colors for current scheme
-export const getParticleColors = (schemeName = null) => {
+// Get colors for current scheme with optional count parameter
+export const getParticleColors = (schemeName = null, particleTypeCount = null) => {
   const scheme = schemeName || getCurrentColorScheme();
   const colorScheme = colorSchemes[scheme] || colorSchemes[DEFAULT_SCHEME];
   
   // Handle dynamic color generation (like oxview golden angle)
   if (colorScheme.generateColor && typeof colorScheme.generateColor === 'function') {
-    // For dynamic schemes, generate a reasonable number of colors
-    // This can be extended based on actual usage needs
-    const numColors = 50; // Generate 50 colors by default
+    // For dynamic schemes, use the actual number of particle types if provided
+    // Otherwise fall back to a reasonable default
+    const numColors = particleTypeCount || 50;
     const generatedColors = [];
     for (let i = 0; i < numColors; i++) {
       generatedColors.push(colorScheme.generateColor(i));

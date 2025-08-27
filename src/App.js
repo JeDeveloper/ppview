@@ -1219,7 +1219,10 @@ function App() {
     }
 
     // Import particle colors and patch color utility
-    const particleColors = getParticleColors(currentColorScheme);
+    // Calculate the number of unique particle types for dynamic color generation
+    const uniqueTypes = new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined));
+    const particleTypeCount = uniqueTypes.size;
+    const particleColors = getParticleColors(currentColorScheme, particleTypeCount);
     const { getColorForPatchID } = require('./utils/colorUtils');
 
     // Create a new scene for export
@@ -1787,7 +1790,10 @@ function App() {
                 
                 {/* Color scheme selector */}
                 <div className="color-scheme-section">
-                  <ColorSchemeSelector onSchemeChange={setCurrentColorScheme} />
+                  <ColorSchemeSelector 
+                    onSchemeChange={setCurrentColorScheme} 
+                    particleTypeCount={positions.length > 0 ? new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined)).size : 10}
+                  />
                 </div>
                 
                 {/* Action buttons */}
@@ -1824,7 +1830,11 @@ function App() {
       )}
       {/* Conditionally render the SelectedParticlesDisplay component */}
       {selectedParticles.length > 0 && (
-        <SelectedParticlesDisplay selectedParticles={selectedParticles} />
+        <SelectedParticlesDisplay 
+          selectedParticles={selectedParticles} 
+          positions={positions}
+          topData={topData}
+        />
       )}
       {/* Conditionally render the PatchLegend component */}
       {topData && showPatchLegend && !isLoading && (

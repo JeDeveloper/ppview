@@ -168,35 +168,222 @@ canvas {
     }
 }
 
+/* Selected Particles Display Styles */
 .selected-particles-display {
     position: fixed;
-    bottom: 10px; /* Adjust as needed */
-    right: 10px; /* Adjust as needed */
-    background-color: rgba(
-        255,
-        255,
-        255,
-        0.8
-    ); /* Semi-transparent background */
-    padding: 10px;
-    border-radius: 4px;
-    z-index: 1000; /* Ensure it appears above other elements */
-    max-height: 200px; /* Add a max height if needed */
-    overflow-y: auto; /* Enable scrolling if content exceeds max height */
+    top: 20px;
+    left: 20px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    z-index: 1000;
+    max-height: 80vh;
+    min-width: 300px;
+    max-width: 450px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .selected-particles-display h3 {
-    margin-top: 0;
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 18px;
+    border-bottom: 2px solid #007acc;
+    padding-bottom: 5px;
 }
 
-.selected-particles-display ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+.selected-particles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 
-.selected-particles-display li {
-    margin-bottom: 5px;
+/* Particle Info Card */
+.particle-info-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #fafafa;
+    overflow: hidden;
+}
+
+.particle-header {
+    background-color: #007acc;
+    color: white;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.particle-type {
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.particle-details {
+    padding: 12px;
+}
+
+/* Info Section */
+.info-section {
+    margin-bottom: 12px;
+}
+
+.info-section h4 {
+    margin: 0 0 6px 0;
+    font-size: 14px;
+    color: #555;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.info-section h5 {
+    margin: 8px 0 4px 0;
+    font-size: 13px;
+    color: #666;
+    font-weight: 600;
+}
+
+/* Coordinate Info */
+.coordinate-info {
+    display: flex;
+    gap: 12px;
+    background-color: #f0f8ff;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.coordinate-info span {
+    font-weight: 500;
+}
+
+/* Orientation Info */
+.orientation-info {
+    background-color: #f9f9f9;
+    padding: 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.vector-info {
+    margin: 2px 0;
+}
+
+.vector-info strong {
+    color: #007acc;
+}
+
+/* Type Info */
+.type-info {
+    background-color: #fff8e1;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.type-stat {
+    margin: 4px 0;
+    font-size: 13px;
+}
+
+.type-stat strong {
+    color: #333;
+}
+
+/* Patch Details */
+.patch-details {
+    margin-top: 8px;
+    background-color: #f5f5f5;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.patch-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 6px;
+}
+
+.patch-item {
+    background-color: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    padding: 6px 8px;
+}
+
+.patch-header {
+    font-weight: 600;
+    color: #007acc;
+    margin-bottom: 4px;
+}
+
+.patch-position {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    color: #666;
+}
+
+.patch-position span {
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+/* MGL Color Info */
+.mgl-color-info {
+    display: flex;
+    align-items: center;
+    background-color: #f0f0f0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.color-preview {
+    border-radius: 3px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Error State */
+.error {
+    color: #d32f2f;
+    font-style: italic;
+    font-size: 12px;
+}
+
+/* Scrollbar Styling */
+.selected-particles-display::-webkit-scrollbar,
+.patch-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.selected-particles-display::-webkit-scrollbar-track,
+.patch-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.selected-particles-display::-webkit-scrollbar-thumb,
+.patch-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.selected-particles-display::-webkit-scrollbar-thumb:hover,
+.patch-list::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
 }
 
 /* Export button styling */
