@@ -93,9 +93,9 @@ function App() {
   const [filesDropped, setFilesDropped] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Loading state
   const [showParticleLegend, setShowParticleLegend] = useState(false);
-  const [showSimulationBox, setShowSimulationBox] = useState(true);
+  const [showSimulationBox, setShowSimulationBox] = useState(false);
   const [showBackdropPlanes, setShowBackdropPlanes] = useState(false);
-  const [showCoordinateAxis, setShowCoordinateAxis] = useState(false);
+  const [showCoordinateAxis, setShowCoordinateAxis] = useState(true);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
 
   // New state for selected particles

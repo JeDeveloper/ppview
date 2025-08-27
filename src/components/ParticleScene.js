@@ -5,8 +5,8 @@ import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 
-// Coordinate Axis component using ArrowHelper - matching oxDNA reference implementation
-function CoordinateAxis() {
+// Coordinate Axis component using ArrowHelper - positioned at box corner
+function CoordinateAxis({ boxSize }) {
   const groupRef = useRef();
   const { scene } = useThree();
   
@@ -18,13 +18,17 @@ function CoordinateAxis() {
       groupRef.current.remove(groupRef.current.children[0]);
     }
     
-    // Fixed arrow length matching oxDNA reference (len: number = 10)
-    const arrowLength = 10;
+    // Arrow length scaled based on box size
+    const arrowLength = Math.min(...boxSize) * 0.15; // 15% of smallest box dimension
     const arrowHeadLength = arrowLength * 0.2;
     const arrowHeadWidth = arrowLength * 0.1;
     
-    // Position at origin matching oxDNA reference (const Origin = new THREE.Vector3(0, 0, 0))
-    const origin = new THREE.Vector3(0, 0, 0);
+    // Position at the bottom-left-back corner of the box
+    const origin = new THREE.Vector3(
+      -boxSize[0] / 2,  // Left edge
+      -boxSize[1] / 2,  // Bottom edge  
+      -boxSize[2] / 2   // Back edge
+    );
     
     // Create X-axis arrow (Dark Red - matching oxDNA reference 0x800000)
     const xDirection = new THREE.Vector3(1, 0, 0);
@@ -65,7 +69,7 @@ function CoordinateAxis() {
     zArrow.name = 'z-axis';
     groupRef.current.add(zArrow);
     
-  }, []); // No dependencies since we use fixed values
+  }, [boxSize]); // Update when boxSize changes
   
   return <group ref={groupRef} />;
 }
@@ -342,7 +346,7 @@ function SceneContent({
 
       {/* Render coordinate axes conditionally */}
       {showCoordinateAxis && (
-        <CoordinateAxis />
+        <CoordinateAxis boxSize={boxSize} />
       )}
 
       <Particles
