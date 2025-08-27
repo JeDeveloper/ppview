@@ -5,6 +5,71 @@ import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 
+// Coordinate Axis component using ArrowHelper - matching oxDNA reference implementation
+function CoordinateAxis() {
+  const groupRef = useRef();
+  const { scene } = useThree();
+  
+  useEffect(() => {
+    if (!groupRef.current) return;
+    
+    // Clear existing arrows
+    while (groupRef.current.children.length > 0) {
+      groupRef.current.remove(groupRef.current.children[0]);
+    }
+    
+    // Fixed arrow length matching oxDNA reference (len: number = 10)
+    const arrowLength = 10;
+    const arrowHeadLength = arrowLength * 0.2;
+    const arrowHeadWidth = arrowLength * 0.1;
+    
+    // Position at origin matching oxDNA reference (const Origin = new THREE.Vector3(0, 0, 0))
+    const origin = new THREE.Vector3(0, 0, 0);
+    
+    // Create X-axis arrow (Dark Red - matching oxDNA reference 0x800000)
+    const xDirection = new THREE.Vector3(1, 0, 0);
+    const xArrow = new THREE.ArrowHelper(
+      xDirection,
+      origin,
+      arrowLength,
+      0x800000, // Dark Red
+      arrowHeadLength,
+      arrowHeadWidth
+    );
+    xArrow.name = 'x-axis';
+    groupRef.current.add(xArrow);
+    
+    // Create Y-axis arrow (Dark Green - matching oxDNA reference 0x008000)
+    const yDirection = new THREE.Vector3(0, 1, 0);
+    const yArrow = new THREE.ArrowHelper(
+      yDirection,
+      origin,
+      arrowLength,
+      0x008000, // Dark Green
+      arrowHeadLength,
+      arrowHeadWidth
+    );
+    yArrow.name = 'y-axis';
+    groupRef.current.add(yArrow);
+    
+    // Create Z-axis arrow (Dark Blue - matching oxDNA reference 0x000080)
+    const zDirection = new THREE.Vector3(0, 0, 1);
+    const zArrow = new THREE.ArrowHelper(
+      zDirection,
+      origin,
+      arrowLength,
+      0x000080, // Dark Blue
+      arrowHeadLength,
+      arrowHeadWidth
+    );
+    zArrow.name = 'z-axis';
+    groupRef.current.add(zArrow);
+    
+  }, []); // No dependencies since we use fixed values
+  
+  return <group ref={groupRef} />;
+}
+
 // Camera-following area light component for molecular render look
 function CameraFollowingLight() {
   const lightRef = useRef();
@@ -65,6 +130,7 @@ const ParticleScene = ({
   onSceneReady,
   showSimulationBox,
   showBackdropPlanes,
+  showCoordinateAxis,
   showPatches,
   colorScheme,
   highlightedClusters,
@@ -72,7 +138,7 @@ const ParticleScene = ({
 }) => {
   return (
     <Canvas 
-      camera={{ position: [0, 0, Math.max(...boxSize) * 1.5], fov: 75 }}
+      camera={{ position: [100, 0, 0], fov: 45 }}
       frameloop="demand" // Only render when needed
       dpr={[1, 2]} // Adaptive pixel ratio for performance
       gl={{ preserveDrawingBuffer: true }} // Enable screenshot capability
@@ -85,6 +151,7 @@ const ParticleScene = ({
         onSceneReady={onSceneReady}
         showSimulationBox={showSimulationBox}
         showBackdropPlanes={showBackdropPlanes}
+        showCoordinateAxis={showCoordinateAxis}
         showPatches={showPatches}
         colorScheme={colorScheme}
         highlightedClusters={highlightedClusters}
@@ -102,6 +169,7 @@ function SceneContent({
   onSceneReady,
   showSimulationBox,
   showBackdropPlanes,
+  showCoordinateAxis,
   showPatches,
   colorScheme,
   highlightedClusters,
@@ -270,6 +338,11 @@ function SceneContent({
             />
           </mesh>
         </>
+      )}
+
+      {/* Render coordinate axes conditionally */}
+      {showCoordinateAxis && (
+        <CoordinateAxis />
       )}
 
       <Particles

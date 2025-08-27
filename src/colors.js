@@ -91,11 +91,36 @@ export const colorSchemes = {
       '#fee825', // Yellow
       '#f9fb0e', // Bright Yellow
     ]
+  },
+  oxview: {
+    name: 'oxView Nucleosides',
+    colors: [
+      '#4747B8', // A or K; Royal Blue
+      '#FFFF33', // G or C; Medium Yellow
+      '#8CFF8C', // C or A; Medium Green
+      '#FF3333', // T/U or T; Red
+      '#660000', // E; Dark Brown
+      '#FF7042', // S; Medium Orange
+      '#A00042', // D; Dark Rose
+      '#FF7C70', // N; Light Salmon
+      '#FF4C4C', // Q; Dark Salmon
+      '#7070FF', // H; Medium Blue
+      '#EBEBEB', // G; Light Grey
+      '#525252', // P; Dark Grey
+      '#00007C', // R; Dark Blue
+      '#5E005E', // V; Dark Purple
+      '#004C00', // I; Dark Green
+      '#455E45', // L; Olive Green
+      '#B8A042', // M; Light Brown
+      '#534C42', // F; Olive Grey
+      '#8C704C', // Y; Medium Brown
+      '#4F4600', // W; Olive Brown
+    ]
   }
 };
 
 // Default scheme
-const DEFAULT_SCHEME = 'muted';
+const DEFAULT_SCHEME = 'oxview';
 const STORAGE_KEY = 'ppview_color_scheme';
 
 // Get current color scheme from localStorage or default

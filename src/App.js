@@ -95,6 +95,7 @@ function App() {
   const [showParticleLegend, setShowParticleLegend] = useState(false);
   const [showSimulationBox, setShowSimulationBox] = useState(true);
   const [showBackdropPlanes, setShowBackdropPlanes] = useState(false);
+  const [showCoordinateAxis, setShowCoordinateAxis] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
 
   // New state for selected particles
@@ -1544,6 +1545,7 @@ function App() {
           onSceneReady={setSceneRef} // Pass callback to get scene reference
           showSimulationBox={showSimulationBox} // Pass simulation box visibility
           showBackdropPlanes={showBackdropPlanes} // Pass backdrop planes visibility
+          showCoordinateAxis={showCoordinateAxis} // Pass coordinate axis visibility
           showPatches={showPatchLegend} // Control patch visibility with patch legend button
           colorScheme={currentColorScheme} // Pass current color scheme
           highlightedClusters={highlightedClusters} // Pass highlighted clusters
@@ -1650,6 +1652,15 @@ function App() {
                       onChange={(e) => setShowSimulationBox(e.target.checked)}
                     />
                     <span className="toggle-icon">📦</span>
+                  </label>
+                  {/* Checkbox to toggle Coordinate Axis */}
+                  <label className="icon-toggle" title="Show Coordinate Axis">
+                    <input
+                      type="checkbox"
+                      checked={showCoordinateAxis}
+                      onChange={(e) => setShowCoordinateAxis(e.target.checked)}
+                    />
+                    <span className="toggle-icon">📐</span>
                   </label>
                   {/* Checkbox to toggle Clustering Pane */}
                   <label className="icon-toggle" title="Show Clustering Pane">
