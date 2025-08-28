@@ -898,11 +898,13 @@ function App() {
           const v = new THREE.Vector3().fromArray(a);
           
           // Apply abs() to a1 and a2 vectors for Flavio format orientation handling
-          if (k === 'a1' || k === 'a2') {
-            v.x = Math.abs(v.x);
-            v.y = Math.abs(v.y);
-            v.z = Math.abs(v.z);
-          }
+          //if (k === 'a1' || k === 'a2') {
+          // if (k === 'a2') {
+          
+          //   v.x = Math.abs(v.x);
+          //   v.y = Math.abs(v.y);
+          //   v.z = Math.abs(v.z);
+          // }
           
           patches.get(currentId)[k] = v;
         }
