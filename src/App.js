@@ -445,7 +445,7 @@ function App() {
       const positionsWithTypes = adjustedPositions.map((pos, index) => {
         const { typeIndex, particleType } = getParticleType(
           index,
-          topData.particleTypes,
+          topData,
         );
 
         let rotationMatrix = null;
@@ -753,7 +753,8 @@ function App() {
     }
 
     // Build particle types array (following initSpecies pattern)
-    Object.keys(typeCounts).forEach((typeIndex) => {
+    // Sort the type keys to ensure consistent ordering regardless of input order
+    Object.keys(typeCounts).sort((a, b) => Number(a) - Number(b)).forEach((typeIndex) => {
       const count = typeCounts[typeIndex];
       let patches = [];
       let patchPositions = [];
@@ -817,7 +818,23 @@ function App() {
       particleTypes.push(particleType);
     });
 
-    return { totalParticles, typeCount, particleTypes };
+    // For Flavio format, we need to create a mapping from particle index to type
+    // because particles are not grouped by type like in Lorenzo format
+    const particleTypeMapping = particleTypesList.map(typeIndex => {
+      // Find the particle type object for this type index
+      const particleType = particleTypes.find(pt => pt.typeIndex === typeIndex);
+      return {
+        typeIndex,
+        particleType: particleType || particleTypes[0] // fallback to first type if not found
+      };
+    });
+
+    return { 
+      totalParticles, 
+      typeCount, 
+      particleTypes,
+      particleTypeMapping // Add this for Flavio format
+    };
   };
 
   // Helper functions for Flavio format parsing (following initSpecies pattern)
@@ -939,24 +956,41 @@ function App() {
   };
 
   // Function to get particle type based on index
-  const getParticleType = (particleIndex, particleTypes) => {
-    let cumulativeCount = 0;
-    for (let i = 0; i < particleTypes.length; i++) {
-      cumulativeCount += particleTypes[i].count;
-      if (particleIndex < cumulativeCount) {
+  const getParticleType = (particleIndex, topologyData) => {
+    // Check if this is Flavio format (has particleTypeMapping)
+    if (topologyData.particleTypeMapping) {
+      // Flavio format: direct particle index to type mapping
+      if (particleIndex < topologyData.particleTypeMapping.length) {
+        return topologyData.particleTypeMapping[particleIndex];
+      } else {
+        // Fallback to first type if index is out of range
+        const firstType = topologyData.particleTypes[0];
         return {
-          typeIndex: particleTypes[i].typeIndex, // Use the assigned typeIndex
-          particleType: particleTypes[i],
+          typeIndex: firstType.typeIndex,
+          particleType: firstType,
         };
       }
-    }
+    } else {
+      // Lorenzo format: use cumulative counts
+      const particleTypes = topologyData.particleTypes;
+      let cumulativeCount = 0;
+      for (let i = 0; i < particleTypes.length; i++) {
+        cumulativeCount += particleTypes[i].count;
+        if (particleIndex < cumulativeCount) {
+          return {
+            typeIndex: particleTypes[i].typeIndex, // Use the assigned typeIndex
+            particleType: particleTypes[i],
+          };
+        }
+      }
 
-    // Default to the last type if not found
-    const lastType = particleTypes[particleTypes.length - 1];
-    return {
-      typeIndex: lastType.typeIndex,
-      particleType: lastType,
-    };
+      // Default to the last type if not found
+      const lastType = particleTypes[particleTypes.length - 1];
+      return {
+        typeIndex: lastType.typeIndex,
+        particleType: lastType,
+      };
+    }
   };
 
   // Function to parse patch files (for Lorenzo's format)
