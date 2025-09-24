@@ -97,6 +97,8 @@ function App() {
   const [showBackdropPlanes, setShowBackdropPlanes] = useState(false);
   const [showCoordinateAxis, setShowCoordinateAxis] = useState(true);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [isIframeMode, setIsIframeMode] = useState(false);
+  const [isDragDropEnabled, setIsDragDropEnabled] = useState(true);
 
   // New state for selected particles
   const [selectedParticles, setSelectedParticles] = useState([]);
@@ -112,6 +114,17 @@ function App() {
   // State for color scheme
   const [currentColorScheme, setCurrentColorScheme] = useState(getCurrentColorScheme());
   
+
+  // Function to show notification (for iframe mode)
+  const notify = useCallback((message) => {
+    console.warn('PPView Notification:', message);
+    // In iframe mode, we just log notifications since alert() might be blocked
+    if (!isIframeMode) {
+      alert(message);
+    }
+  }, [isIframeMode]);
+
+
   // State for trajectory playback
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(500); // milliseconds between frames
@@ -1641,6 +1654,113 @@ function App() {
     );
   }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, showBackdropPlanes, currentColorScheme, topData, highlightedClusters, sceneRef]);
 
+  // Function to create output files for download
+  const makeOutputFiles = useCallback(() => {
+    try {
+      // Export GLTF
+      exportGLTF();
+      
+      // Take screenshot
+      takeScreenshot();
+      
+      console.log('Output files generated successfully');
+    } catch (error) {
+      console.error('Error generating output files:', error);
+    }
+  }, [exportGLTF, takeScreenshot]);
+
+  // Message handler for iframe communication
+  const handleMessage = useCallback((data) => {
+    console.log('PPView received message:', data);
+    
+    if (data.message === 'drop') {
+      handleFilesReceived(data.files);
+    }
+    else if (data.message === 'download') {
+      makeOutputFiles();
+    }
+    else if (data.message === 'remove-event') {
+      // Disable drag-drop on the FileDropZone and show notification on drop attempts
+      setIsDragDropEnabled(false);
+      notify("Dragging onto embedded viewer does not allow form completion");
+    }
+    else if (data.message === 'iframe_drop') {
+      let files = data.files;
+      let ext = data.ext;
+      let view_settings = data.view_settings;
+      
+      if (files.length !== ext.length) {
+        notify("Make sure you pass all files with extensions");
+        return;
+      }
+      
+      // Apply view settings if present
+      if (view_settings) {
+        if ("Box" in view_settings) {
+          setShowSimulationBox(view_settings["Box"]);
+        }
+        if ("BackdropPlanes" in view_settings) {
+          setShowBackdropPlanes(view_settings["BackdropPlanes"]);
+        }
+        if ("CoordinateAxis" in view_settings) {
+          setShowCoordinateAxis(view_settings["CoordinateAxis"]);
+        }
+        if ("PatchLegend" in view_settings) {
+          setShowPatchLegend(view_settings["PatchLegend"]);
+        }
+        if ("ParticleLegend" in view_settings) {
+          setShowParticleLegend(view_settings["ParticleLegend"]);
+        }
+        if ("ClusteringPane" in view_settings) {
+          setShowClusteringPane(view_settings["ClusteringPane"]);
+        }
+        if ("Controls" in view_settings) {
+          setIsControlsVisible(view_settings["Controls"]);
+        }
+      }
+      
+      // Set the names and extensions for every passed file
+      for (let i = 0; i < files.length; i++) {
+        files[i].name = `${i}.${ext[i]}`;
+      }
+      
+      handleFilesReceived(files);
+      return;
+    }
+    else {
+      console.log(data.message, "is not a recognized message");
+      return;
+    }
+  }, [handleFilesReceived, makeOutputFiles, notify]);
+
+  // useEffect to detect iframe mode and set up message listener
+  useEffect(() => {
+    // Check if running in iframe
+    const isInIframe = window.self !== window.top;
+    setIsIframeMode(isInIframe);
+    
+    if (isInIframe) {
+      console.log('PPView: Running in iframe mode');
+      // Hide controls by default in iframe mode
+      setIsControlsVisible(false);
+    }
+    
+    // Set up message listener for iframe communication
+    const messageListener = (event) => {
+      try {
+        handleMessage(event.data);
+      } catch (error) {
+        console.error('Error handling message:', error);
+      }
+    };
+    
+    window.addEventListener('message', messageListener);
+    
+    return () => {
+      window.removeEventListener('message', messageListener);
+    };
+  }, [handleMessage]);
+
   // useEffect to handle key presses
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -1686,7 +1806,13 @@ function App() {
 
   return (
     <div className="App">
-      {!filesDropped && <FileDropZone onFilesReceived={handleFilesReceived} />}
+      {!filesDropped && (
+        <FileDropZone 
+          onFilesReceived={handleFilesReceived} 
+          isDragDropEnabled={isDragDropEnabled}
+          onDisabledDrop={() => notify("Dragging onto embedded viewer does not allow form completion")}
+        />
+      )}
       {positions.length > 0 && (
         <ParticleScene
           positions={positions}

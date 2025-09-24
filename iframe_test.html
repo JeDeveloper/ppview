@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPView Iframe Message Passing Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        iframe {
+            border: 2px solid #333;
+            border-radius: 5px;
+        }
+        .test-section {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PPView Iframe Message Passing Test</h1>
+    
+    <div class="controls">
+        <h3>Message Tests</h3>
+        
+        <div class="test-section">
+            <h4>1. Remove Event Test</h4>
+            <button onclick="testRemoveEvent()">Disable Drag-Drop</button>
+            <p>This should disable file drag-drop in the iframe and show notification on attempts.</p>
+        </div>
+        
+        <div class="test-section">
+            <h4>2. Download Test</h4>
+            <button onclick="testDownload()">Trigger Download</button>
+            <p>This should trigger GLTF export and screenshot if files are loaded.</p>
+        </div>
+        
+        <div class="test-section">
+            <h4>3. View Settings Test</h4>
+            <label>Box:</label>
+            <input type="checkbox" id="boxCheck" checked> 
+            <label>Controls:</label>
+            <input type="checkbox" id="controlsCheck">
+            <label>Patch Legend:</label>
+            <input type="checkbox" id="patchLegendCheck">
+            <br><br>
+            <button onclick="testViewSettings()">Apply View Settings</button>
+            <p>This should update the visibility settings in PPView.</p>
+        </div>
+        
+        <div class="test-section">
+            <h4>4. Simple Drop Test</h4>
+            <input type="file" id="fileInput" multiple>
+            <button onclick="testSimpleDrop()">Send Files via Message</button>
+            <p>Select files and click to send them to PPView via message passing.</p>
+        </div>
+        
+        <div class="test-section">
+            <h4>5. Iframe Drop Test (Advanced)</h4>
+            <button onclick="testIframeDrop()">Simulate Iframe Drop with Settings</button>
+            <p>This simulates a complete file drop with extensions and view settings.</p>
+        </div>
+    </div>
+    
+    <iframe 
+        id="ppviewFrame" 
+        src="http://localhost:3000" 
+        width="100%" 
+        height="600"
+        title="PPView Embedded">
+    </iframe>
+
+    <script>
+        const iframe = document.getElementById('ppviewFrame');
+        
+        function sendMessage(message) {
+            console.log('Sending message to PPView:', message);
+            iframe.contentWindow.postMessage(message, '*');
+        }
+        
+        function testRemoveEvent() {
+            sendMessage({
+                message: 'remove-event'
+            });
+        }
+        
+        function testDownload() {
+            sendMessage({
+                message: 'download'
+            });
+        }
+        
+        function testViewSettings() {
+            const boxCheck = document.getElementById('boxCheck').checked;
+            const controlsCheck = document.getElementById('controlsCheck').checked;
+            const patchLegendCheck = document.getElementById('patchLegendCheck').checked;
+            
+            sendMessage({
+                message: 'iframe_drop',
+                files: [], // No files, just settings
+                ext: [],
+                view_settings: {
+                    "Box": boxCheck,
+                    "Controls": controlsCheck,
+                    "PatchLegend": patchLegendCheck
+                }
+            });
+        }
+        
+        function testSimpleDrop() {
+            const fileInput = document.getElementById('fileInput');
+            const files = Array.from(fileInput.files);
+            
+            if (files.length === 0) {
+                alert('Please select files first!');
+                return;
+            }
+            
+            sendMessage({
+                message: 'drop',
+                files: files
+            });
+        }
+        
+        function testIframeDrop() {
+            // Create mock files for testing
+            const mockTopologyContent = '205 19\\n0 1 1 0 1 1 1 0 1 1 1 15 13 2 15 2 13 13 15 2';
+            const mockTrajectoryContent = 't = 0\\nb = 34.2 34.2 34.2\\nE = 0 0 0\\n0 0 0 1 0 0 0 0 1\\n1 1 1 1 0 0 0 0 1';
+            
+            const topFile = new File([mockTopologyContent], 'test.top', { type: 'text/plain' });
+            const trajFile = new File([mockTrajectoryContent], 'test.dat', { type: 'text/plain' });
+            
+            sendMessage({
+                message: 'iframe_drop',
+                files: [topFile, trajFile],
+                ext: ['top', 'dat'],
+                view_settings: {
+                    "Box": true,
+                    "Controls": true,
+                    "PatchLegend": false,
+                    "ParticleLegend": true,
+                    "CoordinateAxis": true
+                }
+            });
+        }
+        
+        // Listen for messages from the iframe
+        window.addEventListener('message', function(event) {
+            if (event.source === iframe.contentWindow) {
+                console.log('Received message from PPView:', event.data);
+            }
+        });
+        
+        // Wait for iframe to load before showing ready message
+        iframe.addEventListener('load', function() {
+            console.log('PPView iframe loaded and ready for message passing tests!');
+        });
+    </script>
+</body>
+</html>
