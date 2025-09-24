@@ -54,11 +54,16 @@
         </div>
         
         <div class="test-section">
-            <h4>3. View Settings Test</h4>
+            <h4>3. Controls Toggle Test</h4>
+            <button onclick="showControls()">Show Controls</button>
+            <button onclick="hideControls()">Hide Controls</button>
+            <p>Toggle the control panel visibility in the iframe.</p>
+        </div>
+        
+        <div class="test-section">
+            <h4>4. View Settings Test</h4>
             <label>Box:</label>
             <input type="checkbox" id="boxCheck" checked> 
-            <label>Controls:</label>
-            <input type="checkbox" id="controlsCheck">
             <label>Patch Legend:</label>
             <input type="checkbox" id="patchLegendCheck">
             <br><br>
@@ -67,14 +72,14 @@
         </div>
         
         <div class="test-section">
-            <h4>4. Simple Drop Test</h4>
+            <h4>5. Simple Drop Test</h4>
             <input type="file" id="fileInput" multiple>
             <button onclick="testSimpleDrop()">Send Files via Message</button>
             <p>Select files and click to send them to PPView via message passing.</p>
         </div>
         
         <div class="test-section">
-            <h4>5. Iframe Drop Test (Advanced)</h4>
+            <h4>6. Iframe Drop Test (Advanced)</h4>
             <button onclick="testIframeDrop()">Simulate Iframe Drop with Settings</button>
             <p>This simulates a complete file drop with extensions and view settings.</p>
         </div>
@@ -108,9 +113,30 @@
             });
         }
         
+        function showControls() {
+            sendMessage({
+                message: 'iframe_drop',
+                files: [],
+                ext: [],
+                view_settings: {
+                    "Controls": true
+                }
+            });
+        }
+        
+        function hideControls() {
+            sendMessage({
+                message: 'iframe_drop',
+                files: [],
+                ext: [],
+                view_settings: {
+                    "Controls": false
+                }
+            });
+        }
+        
         function testViewSettings() {
             const boxCheck = document.getElementById('boxCheck').checked;
-            const controlsCheck = document.getElementById('controlsCheck').checked;
             const patchLegendCheck = document.getElementById('patchLegendCheck').checked;
             
             sendMessage({
@@ -119,7 +145,6 @@
                 ext: [],
                 view_settings: {
                     "Box": boxCheck,
-                    "Controls": controlsCheck,
                     "PatchLegend": patchLegendCheck
                 }
             });

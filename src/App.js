@@ -1733,7 +1733,7 @@ function App() {
     }
   }, [handleFilesReceived, makeOutputFiles, notify]);
 
-  // useEffect to detect iframe mode and set up message listener
+  // useEffect to detect iframe mode (run only once on mount)
   useEffect(() => {
     // Check if running in iframe
     const isInIframe = window.self !== window.top;
@@ -1744,7 +1744,10 @@ function App() {
       // Hide controls by default in iframe mode
       setIsControlsVisible(false);
     }
-    
+  }, []); // Empty dependency array - run only once on mount
+
+  // useEffect to set up message listener
+  useEffect(() => {
     // Set up message listener for iframe communication
     const messageListener = (event) => {
       try {
