@@ -29,9 +29,6 @@
 
 /* Main clustering pane */
 .clustering-pane {
-  position: absolute;
-  top: 20px;
-  left: 250px; /* Positioned next to particle legend */
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.95);
   border: 2px solid #3498db;
@@ -202,28 +199,33 @@
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  height: 120px;
+  height: 100%;
+  min-height: 120px;
   gap: 4px;
   overflow-x: auto;
   padding: 0 5px;
+  position: relative;
 }
 
 .histogram-bar-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: center;
   min-width: 30px;
   flex-shrink: 0;
+  height: 100%;
+  justify-content: flex-start;
 }
 
 .histogram-bar {
   background: linear-gradient(to top, #3498db, #5dade2);
   border-radius: 2px 2px 0 0;
-  width: 100%;
+  width: 25px;
   min-height: 2px;
   transition: all 0.3s ease;
   cursor: pointer;
   border: 1px solid #2980b9;
+  align-self: center;
 }
 
 .histogram-bar:hover {

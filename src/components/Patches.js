@@ -1,6 +1,6 @@
 // src/components/Patches.js
 
-import React, { useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo } from "react";
 import * as THREE from 'three';
 import { getColorForPatchID } from '../utils/colorUtils';
 
@@ -68,11 +68,22 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
           }
 
           // Compute the patch position and orientation
+          // Check if this is a unit vector (Flavio format) or larger value (Lorenzo format)
+          const patchVectorLength = Math.sqrt(
+            patchOffset.x * patchOffset.x + 
+            patchOffset.y * patchOffset.y + 
+            patchOffset.z * patchOffset.z
+          );
+          
+          // If patch vector is approximately unit length (Flavio format), use 0.5 scaling
+          // If it's larger (Lorenzo format), use smaller scaling factor
+          const scaleFactor = patchVectorLength < 1.5 ? 0.5 : 0.5 / patchVectorLength;
+          
           const localPatchPosition = new THREE.Vector3(
             patchOffset.x,
             patchOffset.y,
             patchOffset.z
-          ).multiplyScalar(0.5); // Scale based on particle radius
+          ).multiplyScalar(scaleFactor);
 
           // Create the outward-pointing direction vector (normalized patch offset)
           const patchDirection = new THREE.Vector3(
@@ -124,12 +135,19 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
       mesh.instanceMatrix.needsUpdate = true;
 
       // Assign or update the instanceColor attribute
-      if (!mesh.geometry.attributes.instanceColor) {
-        const colorArray = new Float32Array(colors);
+      const colorArray = new Float32Array(colors);
+      if (!mesh.geometry.attributes.instanceColor || mesh.geometry.attributes.instanceColor.array.length !== colorArray.length) {
+        // Create new attribute if it doesn't exist or size changed
         mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorArray, 3));
       } else {
-        mesh.geometry.attributes.instanceColor.array.set(colors);
-        mesh.geometry.attributes.instanceColor.needsUpdate = true;
+        // Only set if arrays are the same length
+        if (mesh.geometry.attributes.instanceColor.array.length === colorArray.length) {
+          mesh.geometry.attributes.instanceColor.array.set(colorArray);
+          mesh.geometry.attributes.instanceColor.needsUpdate = true;
+        } else {
+          // Recreate if lengths don't match
+          mesh.geometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorArray, 3));
+        }
       }
 
       // Update material to use instanceColor

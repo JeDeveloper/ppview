@@ -1,14 +1,16 @@
-import React, { useRef, forwardRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, Environment, Stats } from "@react-three/drei";
+import { OrbitControls, Stats } from "@react-three/drei";
 import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
+import { useParticleStore } from "../store/particleStore";
+import { useUIStore } from "../store/uiStore";
+import { useClusteringStore } from "../store/clusteringStore";
 
 // Coordinate Axis component using ArrowHelper - positioned at box corner
 function CoordinateAxis({ boxSize }) {
   const groupRef = useRef();
-  const { scene } = useThree();
   
   useEffect(() => {
     if (!groupRef.current) return;
@@ -126,20 +128,26 @@ function CameraFollowingLight() {
   );
 }
 
-const ParticleScene = ({
-  positions,
-  boxSize,
-  selectedParticles,
-  setSelectedParticles,
-  onSceneReady,
-  showSimulationBox,
-  showBackdropPlanes,
-  showCoordinateAxis,
-  showPatches,
-  colorScheme,
-  highlightedClusters,
-  showOnlyHighlightedClusters,
-}) => {
+const ParticleScene = () => {
+  // Get data from Zustand stores
+  const positions = useParticleStore(state => state.positions);
+  const currentBoxSize = useParticleStore(state => state.currentBoxSize);
+  
+  const {
+    selectedParticles,
+    setSelectedParticles,
+    setSceneRef,
+    showSimulationBox,
+    showBackdropPlanes,
+    showCoordinateAxis,
+    showPatchLegend,
+    currentColorScheme,
+  } = useUIStore();
+  
+  const {
+    highlightedClusters,
+    showOnlyHighlightedClusters,
+  } = useClusteringStore();
   return (
     <Canvas 
       camera={{ position: [100, 0, 0], fov: 45 }}
@@ -149,15 +157,15 @@ const ParticleScene = ({
     >
       <SceneContent
         positions={positions}
-        boxSize={boxSize}
+        boxSize={currentBoxSize}
         selectedParticles={selectedParticles}
         setSelectedParticles={setSelectedParticles}
-        onSceneReady={onSceneReady}
+        onSceneReady={setSceneRef}
         showSimulationBox={showSimulationBox}
         showBackdropPlanes={showBackdropPlanes}
         showCoordinateAxis={showCoordinateAxis}
-        showPatches={showPatches}
-        colorScheme={colorScheme}
+        showPatches={showPatchLegend}
+        colorScheme={currentColorScheme}
         highlightedClusters={highlightedClusters}
         showOnlyHighlightedClusters={showOnlyHighlightedClusters}
       />
@@ -350,15 +358,7 @@ function SceneContent({
       )}
 
       <Particles
-        positions={positions}
-        boxSize={boxSize}
-        selectedParticles={selectedParticles}
-        setSelectedParticles={setSelectedParticles}
-        onParticleDoubleClick={handleParticleDoubleClick} // Pass the callback
-        showPatches={showPatches}
-        colorScheme={colorScheme}
-        highlightedClusters={highlightedClusters}
-        showOnlyHighlightedClusters={showOnlyHighlightedClusters}
+        onParticleDoubleClick={handleParticleDoubleClick}
       />
 
       {/* Add SSAO for ambient occlusion effect */}

@@ -1,26 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { colorSchemes, getCurrentColorScheme, saveColorScheme, getParticleColors } from '../colors';
+import React, { useState } from 'react';
+import { colorSchemes, saveColorScheme, getParticleColors } from '../colors';
+import { useParticleStore } from '../store/particleStore';
+import { useUIStore } from '../store/uiStore';
 import './ColorSchemeSelector.css';
 
-function ColorSchemeSelector({ onSchemeChange, particleTypeCount = 10 }) {
-  const [currentScheme, setCurrentScheme] = useState(getCurrentColorScheme());
+function ColorSchemeSelector() {
+  // Get data from Zustand stores
+  const getUniqueParticleTypes = useParticleStore(state => state.getUniqueParticleTypes);
+  const { currentColorScheme, setCurrentColorScheme } = useUIStore();
   const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    // Notify parent component of initial scheme
-    if (onSchemeChange) {
-      onSchemeChange(currentScheme);
-    }
-  }, []);
+  
+  const particleTypeCount = getUniqueParticleTypes().size || 10;
 
   const handleSchemeChange = (schemeName) => {
-    setCurrentScheme(schemeName);
+    setCurrentColorScheme(schemeName);
     saveColorScheme(schemeName);
     setIsOpen(false);
-    
-    if (onSchemeChange) {
-      onSchemeChange(schemeName);
-    }
   };
 
   const getColorsForPreview = (schemeName) => {
@@ -61,9 +56,9 @@ function ColorSchemeSelector({ onSchemeChange, particleTypeCount = 10 }) {
           title="Select particle color scheme"
         >
           <span className="scheme-name">
-            {colorSchemes[currentScheme]?.name || 'Unknown'}
+            {colorSchemes[currentColorScheme]?.name || 'Unknown'}
           </span>
-          <ColorPreview schemeName={currentScheme} size={10} />
+          <ColorPreview schemeName={currentColorScheme} size={10} />
           <span className="dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
         </button>
       </div>
@@ -74,7 +69,7 @@ function ColorSchemeSelector({ onSchemeChange, particleTypeCount = 10 }) {
             {Object.entries(colorSchemes).map(([key, scheme]) => (
               <button
                 key={key}
-                className={`scheme-option ${currentScheme === key ? 'selected' : ''}`}
+                className={`scheme-option ${currentColorScheme === key ? 'selected' : ''}`}
                 onClick={() => handleSchemeChange(key)}
               >
                 <div className="scheme-option-content">
@@ -82,7 +77,7 @@ function ColorSchemeSelector({ onSchemeChange, particleTypeCount = 10 }) {
                     <span className="scheme-option-name">{scheme.name}</span>
                     <ColorPreview schemeName={key} size={14} />
                   </div>
-                  {currentScheme === key && (
+                  {currentColorScheme === key && (
                     <span className="selected-indicator">✓</span>
                   )}
                 </div>

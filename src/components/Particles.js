@@ -2,19 +2,21 @@ import React, { useRef, useEffect, useMemo, useCallback } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { getParticleColors } from "../colors";
+import { useParticleStore } from "../store/particleStore";
+import { useUIStore } from "../store/uiStore";
+import { useClusteringStore } from "../store/clusteringStore";
 import Patches from "./Patches";
-import SelectableParticle from "./SelectableParticle";
+
 function Particles({
-  positions,
-  boxSize,
-  selectedParticles,
-  setSelectedParticles,
   onParticleDoubleClick,
-  showPatches = true, // Default to true for backward compatibility
-  colorScheme = null, // Allow color scheme to be passed as prop
-  highlightedClusters = new Set(),
-  showOnlyHighlightedClusters = false,
 }) {
+  // Get data from Zustand stores
+  const positions = useParticleStore(state => state.positions);
+  const boxSize = useParticleStore(state => state.currentBoxSize);
+  const { selectedParticles, setSelectedParticles } = useUIStore();
+  const colorScheme = useUIStore(state => state.currentColorScheme);
+  const showPatches = useUIStore(state => state.showPatchLegend);
+  const { highlightedClusters, showOnlyHighlightedClusters } = useClusteringStore();
   const meshRef = useRef();
   const count = Math.max(1, positions?.length || 0); // Ensure minimum count of 1
   const { gl, camera } = useThree(); // For raycasting
@@ -103,12 +105,18 @@ function Particles({
       // Ensure we don't exceed the actual instance count
       const instanceCount = Math.min(mesh.count, particleData.length);
       
+      // Safety check: ensure instanceColor exists and has the right length
+      if (!mesh.instanceColor || mesh.instanceColor.count !== instanceCount) {
+        console.warn('Instance color buffer mismatch in color scheme update, skipping');
+        return;
+      }
+      
       // Update instance colors with new color scheme
       for (let i = 0; i < instanceCount; i++) {
         const data = particleData[i];
-        if (!data) continue; // Skip if data is undefined
+        if (!data || !data.typeColor) continue; // Skip if data is undefined or incomplete
         
-        if (!selectedParticles.includes(i)) {
+        if (!Array.isArray(selectedParticles) || !selectedParticles.includes(i)) {
           try {
             mesh.setColorAt(i, data.typeColor);
           } catch (error) {
@@ -127,39 +135,45 @@ function Particles({
       const mesh = meshRef.current;
       const dummy = new THREE.Object3D();
 
-      // Ensure we don't exceed the actual instance count and have valid data
-      const actualCount = Math.min(mesh.count, particleData.length, colors.length / 3);
+      // Use mesh.count as the source of truth - it should match the number of instances we're working with
+      const instanceCount = mesh.count;
       
-      // Set positions
-      for (let i = 0; i < actualCount; i++) {
-        const data = particleData[i];
-        if (!data || !data.position) continue;
-        
-        try {
-          dummy.position.set(
-            data.position.x,
-            data.position.y,
-            data.position.z,
-          );
-          dummy.updateMatrix();
-          mesh.setMatrixAt(i, dummy.matrix);
-        } catch (error) {
-          console.warn(`Error setting particle ${i} position:`, error);
-          break; // Stop processing if we hit an error
+      // Create color array that exactly matches instance count
+      const instanceColorArray = new Float32Array(instanceCount * 3);
+      
+      // Set positions and populate color array
+      for (let i = 0; i < instanceCount; i++) {
+        if (i < particleData.length) {
+          const data = particleData[i];
+          if (data && data.position) {
+            try {
+              dummy.position.set(
+                data.position.x,
+                data.position.y,
+                data.position.z,
+              );
+              dummy.updateMatrix();
+              mesh.setMatrixAt(i, dummy.matrix);
+              
+              // Set color from colors array if available
+              const colorOffset = i * 3;
+              if (colorOffset + 2 < colors.length) {
+                instanceColorArray[colorOffset] = colors[colorOffset];
+                instanceColorArray[colorOffset + 1] = colors[colorOffset + 1];
+                instanceColorArray[colorOffset + 2] = colors[colorOffset + 2];
+              }
+            } catch (error) {
+              console.warn(`Error setting particle ${i} position:`, error);
+            }
+          }
         }
       }
 
       mesh.instanceMatrix.needsUpdate = true;
 
-      // Set initial colors with strict bounds checking
+      // Set instance colors - create new attribute that matches mesh count exactly
       try {
-        if (colors.length >= actualCount * 3 && actualCount > 0) {
-          const safeColorArray = new Float32Array(actualCount * 3);
-          for (let i = 0; i < actualCount * 3; i++) {
-            safeColorArray[i] = colors[i] || 0;
-          }
-          mesh.instanceColor = new THREE.InstancedBufferAttribute(safeColorArray, 3);
-        }
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(instanceColorArray, 3);
       } catch (error) {
         console.warn('Error setting instance colors:', error);
       }
@@ -214,21 +228,20 @@ function Particles({
         
         // Validate instanceId is within valid range
         if (instanceId >= 0 && instanceId < particleData.length) {
-          setSelectedParticles((prevSelected) => {
-            if (event.ctrlKey || event.metaKey) {
-              // If Ctrl or Command key is pressed, toggle selection of the particle
-              if (prevSelected.includes(instanceId)) {
-                // Deselect particle
-                return prevSelected.filter((id) => id !== instanceId);
-              } else {
-                // Select particle
-                return [...prevSelected, instanceId];
-              }
+          if (event.ctrlKey || event.metaKey) {
+            // If Ctrl or Command key is pressed, toggle selection of the particle
+            if (Array.isArray(selectedParticles) && selectedParticles.includes(instanceId)) {
+              // Deselect particle
+              setSelectedParticles(selectedParticles.filter((id) => id !== instanceId));
             } else {
-              // If Ctrl is not pressed, select only this particle
-              return [instanceId];
+              // Select particle
+              const current = Array.isArray(selectedParticles) ? selectedParticles : [];
+              setSelectedParticles([...current, instanceId]);
             }
-          });
+          } else {
+            // If Ctrl is not pressed, select only this particle
+            setSelectedParticles([instanceId]);
+          }
         }
       } else {
         if (!event.ctrlKey && !event.metaKey) {
@@ -295,15 +308,21 @@ function Particles({
       // Ensure we don't exceed the actual instance count
       const instanceCount = Math.min(mesh.count, particleData.length);
 
+      // Safety check: ensure instanceColor exists and has the right length
+      if (!mesh.instanceColor || mesh.instanceColor.count !== instanceCount) {
+        console.warn('Instance color buffer mismatch, skipping update');
+        return;
+      }
+
       for (let i = 0; i < instanceCount; i++) {
         const data = particleData[i];
-        if (!data) continue; // Skip if data is undefined
+        if (!data || !data.position) continue; // Skip if data is undefined or incomplete
         
         let color;
         let scale = 1.0;
         
         // Determine color based on selection and cluster highlighting
-        if (selectedParticles.includes(i)) {
+        if (Array.isArray(selectedParticles) && selectedParticles.includes(i)) {
           color = yellowColor; // Selected particles are yellow
         } else if (data.isInHighlightedCluster && highlightedClusters.size > 0) {
           color = data.typeColor; // Keep original particle color for highlighted clusters

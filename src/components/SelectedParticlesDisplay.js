@@ -1,6 +1,14 @@
 import React from "react";
+import { useParticleStore } from "../store/particleStore";
+import { useUIStore } from "../store/uiStore";
+import DraggablePanel from "./DraggablePanel";
 
-function SelectedParticlesDisplay({ selectedParticles, positions, topData }) {
+function SelectedParticlesDisplay() {
+  const positions = useParticleStore(state => state.positions);
+  const topData = useParticleStore(state => state.topData);
+  const selectedParticles = useUIStore(state => state.selectedParticles);
+  
+  if (!selectedParticles || !Array.isArray(selectedParticles) || selectedParticles.length === 0) return null;
   // Helper function to get particle information
   const getParticleInfo = (particleIndex) => {
     if (!positions || !positions[particleIndex] || !topData) {
@@ -46,8 +54,8 @@ function SelectedParticlesDisplay({ selectedParticles, positions, topData }) {
   };
 
   return (
-    <div className="selected-particles-display">
-      <h3>Selected Particles ({selectedParticles.length})</h3>
+    <DraggablePanel initialX={20} initialY={100} className="selected-particles-display">
+      <h3 className="drag-handle" style={{ cursor: 'grab' }}>Selected Particles ({selectedParticles.length})</h3>
       <div className="selected-particles-list">
         {selectedParticles.map((particleIndex) => {
           const info = getParticleInfo(particleIndex);
@@ -161,7 +169,7 @@ function SelectedParticlesDisplay({ selectedParticles, positions, topData }) {
           );
         })}
       </div>
-    </div>
+    </DraggablePanel>
   );
 }
 

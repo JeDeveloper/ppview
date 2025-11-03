@@ -1,9 +1,16 @@
 import React from 'react';
-import { getParticleColors } from '../colors'; 
+import { getParticleColors } from '../colors';
+import { useParticleStore } from '../store/particleStore';
+import { useUIStore } from '../store/uiStore';
 
-
-function ParticleLegend({ particleTypes, colorScheme = null }) {
-  const particleColors = getParticleColors(colorScheme);
+function ParticleLegend() {
+  const topData = useParticleStore(state => state.topData);
+  const currentColorScheme = useUIStore(state => state.currentColorScheme);
+  
+  if (!topData || !topData.particleTypes) return null;
+  
+  const particleTypes = topData.particleTypes;
+  const particleColors = getParticleColors(currentColorScheme);
   
   return (
     <div className="particle-legend">

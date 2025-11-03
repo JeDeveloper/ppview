@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import FileDropZone from "./components/FileDropZone";
 import ParticleScene from "./components/ParticleScene";
 import PatchLegend from "./components/PatchLegend";
 import ParticleLegend from "./components/ParticleLegend";
-import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay"; // Import the new component
-import ColorSchemeSelector from "./components/ColorSchemeSelector"; // Import the new color scheme selector
-import ClusteringPane from "./components/ClusteringPane"; // Import the new clustering pane
+import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay";
+import ColorSchemeSelector from "./components/ColorSchemeSelector";
+import ClusteringPane from "./components/ClusteringPane";
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
-import { getCurrentColorScheme, getParticleColors } from "./colors";
+import { getParticleColors } from "./colors";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
+import { useParticleStore } from "./store/particleStore";
+import { useUIStore } from "./store/uiStore";
+import { useClusteringStore } from "./store/clusteringStore";
 import "./styles.css";
 
 // Helper function for fallback trajectory file prioritization
@@ -75,46 +78,66 @@ function selectFallbackTrajectoryFile(trajectoryFiles) {
 }
 
 function App() {
-  const [positions, setPositions] = useState([]);
-  const [currentBoxSize, setCurrentBoxSize] = useState([
-    34.199520111084, 34.199520111084, 34.199520111084,
-  ]);
-  const [topData, setTopData] = useState(null);
-
-  const [trajFile, setTrajFile] = useState(null);
-  const [configIndex, setConfigIndex] = useState([]);
-  const [currentConfigIndex, setCurrentConfigIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [currentEnergy, setCurrentEnergy] = useState([]);
-  const [totalConfigs, setTotalConfigs] = useState(0);
-
-  // State variables for toggling Patch legend visibility and loading
-  const [showPatchLegend, setShowPatchLegend] = useState(false);
-  const [filesDropped, setFilesDropped] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Loading state
-  const [showParticleLegend, setShowParticleLegend] = useState(false);
-  const [showSimulationBox, setShowSimulationBox] = useState(false);
-  const [showBackdropPlanes, setShowBackdropPlanes] = useState(false);
-  const [showCoordinateAxis, setShowCoordinateAxis] = useState(true);
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const [isIframeMode, setIsIframeMode] = useState(false);
-  const [isDragDropEnabled, setIsDragDropEnabled] = useState(true);
-
-  // New state for selected particles
-  const [selectedParticles, setSelectedParticles] = useState([]);
+  // Zustand stores
+  const {
+    positions,
+    currentBoxSize,
+    topData,
+    trajFile,
+    configIndex,
+    currentConfigIndex,
+    currentTime,
+    totalConfigs,
+    setPositions,
+    setCurrentBoxSize,
+    setTopData,
+    setTrajFile,
+    setConfigIndex,
+    setCurrentConfigIndex,
+    setCurrentTime,
+    setCurrentEnergy,
+    setTotalConfigs,
+  } = useParticleStore();
   
-  // State for clustering pane
-  const [showClusteringPane, setShowClusteringPane] = useState(false);
-  const [highlightedClusters, setHighlightedClusters] = useState(new Set());
-  const [showOnlyHighlightedClusters, setShowOnlyHighlightedClusters] = useState(false);
-
-  // State to store the scene reference for GLTF export
-  const [sceneRef, setSceneRef] = useState(null);
+  const {
+    showPatchLegend,
+    showParticleLegend,
+    showSimulationBox,
+    showBackdropPlanes,
+    showCoordinateAxis,
+    isControlsVisible,
+    showClusteringPane,
+    filesDropped,
+    isLoading,
+    sceneRef,
+    isIframeMode,
+    isDragDropEnabled,
+    currentColorScheme,
+    isPlaying,
+    playbackSpeed,
+    isSpeedPopupVisible,
+    setShowPatchLegend,
+    setShowParticleLegend,
+    setShowSimulationBox,
+    setShowBackdropPlanes,
+    setShowCoordinateAxis,
+    setIsControlsVisible,
+    setShowClusteringPane,
+    setFilesDropped,
+    setIsLoading,
+    setIsIframeMode,
+    setIsDragDropEnabled,
+    setIsPlaying,
+    setPlaybackSpeed,
+    setIsSpeedPopupVisible,
+  } = useUIStore();
   
-  // State for color scheme
-  const [currentColorScheme, setCurrentColorScheme] = useState(getCurrentColorScheme());
+  const highlightedClusters = useClusteringStore(state => state.highlightedClusters);
   
-
+  // Refs
+  const playbackIntervalRef = useRef(null);
+  const speedPopupRef = useRef(null);
+  
   // Function to show notification (for iframe mode)
   const notify = useCallback((message) => {
     console.warn('PPView Notification:', message);
@@ -123,14 +146,6 @@ function App() {
       alert(message);
     }
   }, [isIframeMode]);
-
-
-  // State for trajectory playback
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(500); // milliseconds between frames
-  const [isSpeedPopupVisible, setIsSpeedPopupVisible] = useState(false);
-  const playbackIntervalRef = useRef(null);
-  const speedPopupRef = useRef(null);
   
   // Function to trigger scene re-render when needed
   const invalidateScene = useCallback(() => {
@@ -188,11 +203,6 @@ function App() {
     }
   }, [sceneRef, currentConfigIndex]);
 
-  // Handle cluster highlighting
-  const handleHighlightClusters = useCallback((clusterIndices, showOnlySelected) => {
-    setHighlightedClusters(clusterIndices);
-    setShowOnlyHighlightedClusters(showOnlySelected);
-  }, []);
 
   const handleFilesReceived = async (files) => {
     if (!files || files.length === 0) {
@@ -1185,22 +1195,21 @@ function App() {
       // Start playback
       setIsPlaying(true);
       playbackIntervalRef.current = setInterval(() => {
-        setCurrentConfigIndex(prevIndex => {
-          const nextIndex = prevIndex + 1;
-          if (nextIndex >= totalConfigs) {
-            // Reached the end, stop playback
-            if (playbackIntervalRef.current) {
-              clearInterval(playbackIntervalRef.current);
-              playbackIntervalRef.current = null;
-            }
-            setIsPlaying(false);
-            return prevIndex; // Stay at the last frame
+        const currentIndex = useParticleStore.getState().currentConfigIndex;
+        const nextIndex = currentIndex + 1;
+        if (nextIndex >= totalConfigs) {
+          // Reached the end, stop playback
+          if (playbackIntervalRef.current) {
+            clearInterval(playbackIntervalRef.current);
+            playbackIntervalRef.current = null;
           }
-          return nextIndex;
-        });
+          setIsPlaying(false);
+        } else {
+          setCurrentConfigIndex(nextIndex);
+        }
       }, playbackSpeed);
     }
-  }, [isPlaying, playbackSpeed, totalConfigs]);
+  }, [isPlaying, playbackSpeed, totalConfigs, setIsPlaying, setCurrentConfigIndex]);
 
   // Function to reset trajectory to beginning
   const resetTrajectory = useCallback(() => {
@@ -1210,7 +1219,7 @@ function App() {
     }
     setIsPlaying(false);
     setCurrentConfigIndex(0);
-  }, []);
+  }, [setIsPlaying, setCurrentConfigIndex]);
 
   // Cleanup playback interval on unmount
   useEffect(() => {
@@ -1817,20 +1826,7 @@ function App() {
         />
       )}
       {positions.length > 0 && (
-        <ParticleScene
-          positions={positions}
-          boxSize={currentBoxSize}
-          selectedParticles={selectedParticles} // Pass as prop
-          setSelectedParticles={setSelectedParticles} // Pass as prop
-          onSceneReady={setSceneRef} // Pass callback to get scene reference
-          showSimulationBox={showSimulationBox} // Pass simulation box visibility
-          showBackdropPlanes={showBackdropPlanes} // Pass backdrop planes visibility
-          showCoordinateAxis={showCoordinateAxis} // Pass coordinate axis visibility
-          showPatches={showPatchLegend} // Control patch visibility with patch legend button
-          colorScheme={currentColorScheme} // Pass current color scheme
-          highlightedClusters={highlightedClusters} // Pass highlighted clusters
-          showOnlyHighlightedClusters={showOnlyHighlightedClusters} // Pass cluster highlighting mode
-        />
+        <ParticleScene />
       )}
       {positions.length > 0 && !isLoading && (
         <>
@@ -1955,10 +1951,7 @@ function App() {
                 
                 {/* Color scheme selector */}
                 <div className="color-scheme-section">
-                  <ColorSchemeSelector 
-                    onSchemeChange={setCurrentColorScheme} 
-                    particleTypeCount={positions.length > 0 ? new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined)).size : 10}
-                  />
+                  <ColorSchemeSelector />
                 </div>
                 
                 {/* Action buttons */}
@@ -1994,35 +1987,20 @@ function App() {
         </>
       )}
       {/* Conditionally render the SelectedParticlesDisplay component */}
-      {selectedParticles.length > 0 && (
-        <SelectedParticlesDisplay 
-          selectedParticles={selectedParticles} 
-          positions={positions}
-          topData={topData}
-        />
-      )}
+      <SelectedParticlesDisplay />
+      
       {/* Conditionally render the PatchLegend component */}
       {topData && showPatchLegend && !isLoading && (
-        <PatchLegend
-          patchIDs={topData.particleTypes.flatMap((type) => type.patches)}
-          colorScheme={currentColorScheme}
-        />
+        <PatchLegend />
       )}
+      
       {/* Conditionally render the ParticleLegend component */}
       {topData && showParticleLegend && !isLoading && (
-        <ParticleLegend 
-          particleTypes={topData.particleTypes} 
-          colorScheme={currentColorScheme}
-        />
+        <ParticleLegend />
       )}
       {/* Conditionally render the ClusteringPane component */}
       {positions.length > 0 && showClusteringPane && !isLoading && (
-        <ClusteringPane
-          positions={positions}
-          boxSize={currentBoxSize}
-          onHighlightClusters={handleHighlightClusters}
-          colorScheme={currentColorScheme}
-        />
+        <ClusteringPane />
       )}
       {isLoading && (
         <div className="loading-overlay">

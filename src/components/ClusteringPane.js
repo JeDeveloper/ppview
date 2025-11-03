@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useParticleStore } from '../store/particleStore';
+import { useUIStore } from '../store/uiStore';
+import { useClusteringStore } from '../store/clusteringStore';
+import DraggablePanel from './DraggablePanel';
 import './ClusteringPane.css';
 
 // DBSCAN clustering algorithm implementation
@@ -102,12 +106,10 @@ function generateHistogram(clusterSizes) {
   return bins;
 }
 
-function ClusteringPane({ 
-  positions, 
-  boxSize, 
-  onHighlightClusters = () => {}, 
-  colorScheme = null 
-}) {
+function ClusteringPane() {
+  // Get data from Zustand stores
+  const positions = useParticleStore(state => state.positions);
+  const highlightClusters = useClusteringStore(state => state.highlightClusters);
   const [epsilon, setEpsilon] = useState(2.0);
   const [minPoints, setMinPoints] = useState(3);
   const [selectedClusters, setSelectedClusters] = useState(new Set());
@@ -146,7 +148,9 @@ function ClusteringPane({
 
   // Generate histogram data
   const histogramData = useMemo(() => {
-    return generateHistogram(statistics.clusterSizes);
+    const histogram = generateHistogram(statistics.clusterSizes);
+    // Sort by cluster size (largest first)
+    return histogram.sort((a, b) => b.size - a.size);
   }, [statistics.clusterSizes]);
 
   // Handle cluster selection
@@ -169,8 +173,31 @@ function ClusteringPane({
   const clearSelection = () => {
     setSelectedClusters(new Set());
   };
+  
+  // Handle clicking on histogram bar to select clusters of that size
+  const handleHistogramBarClick = (clusterSize, event) => {
+    const clustersOfSize = [];
+    clusters.forEach((cluster, index) => {
+      if (cluster.length === clusterSize) {
+        clustersOfSize.push(index);
+      }
+    });
+    
+    if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+click: Add to existing selection
+      const newSelected = new Set(selectedClusters);
+      clustersOfSize.forEach(idx => newSelected.add(idx));
+      setSelectedClusters(newSelected);
+    } else {
+      // Normal click: Replace selection
+      setSelectedClusters(new Set(clustersOfSize));
+    }
+    
+    // Automatically enable "show only selected" mode
+    setShowOnlySelected(true);
+  };
 
-  // Notify parent about highlighted clusters
+  // Notify store about highlighted clusters
   useEffect(() => {
     const highlightedParticleIndices = new Set();
     
@@ -184,8 +211,13 @@ function ClusteringPane({
       });
     }
     
-    onHighlightClusters(highlightedParticleIndices, showOnlySelected);
-  }, [clusters, selectedClusters, showOnlySelected, onHighlightClusters]);
+    highlightClusters(highlightedParticleIndices, showOnlySelected);
+  }, [clusters, selectedClusters, showOnlySelected, highlightClusters]);
+  
+  // Early return if no positions loaded
+  if (!positions || positions.length === 0) {
+    return null;
+  }
 
   if (!isVisible) {
     return (
@@ -202,8 +234,8 @@ function ClusteringPane({
   }
 
   return (
-    <div className="clustering-pane">
-      <div className="clustering-header">
+    <DraggablePanel initialX={250} initialY={20} className="clustering-pane">
+      <div className="clustering-header drag-handle" style={{ cursor: 'grab' }}>
         <h3>Particle Clustering</h3>
         <button 
           className="close-button"
@@ -283,12 +315,15 @@ function ClusteringPane({
       {/* Histogram */}
       <div className="clustering-histogram">
         <h4>Cluster Size Distribution</h4>
+        <p style={{ fontSize: '11px', color: '#7f8c8d', marginBottom: '8px', marginTop: '-5px' }}>
+          Click a bar to select clusters of that size. Cmd/Ctrl+click to add. Top = count, bottom = size (particles).
+        </p>
         <div className="histogram-container">
           {histogramData.length > 0 ? (
             <>
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', height: '150px' }}>
                 <div className="histogram-y-axis">Count</div>
-                <div className="histogram-bars">
+                <div className="histogram-bars" style={{ height: '100%' }}>
                   {histogramData.map((bin, index) => {
                     const maxCount = Math.max(...histogramData.map(b => b.count));
                     
@@ -297,18 +332,36 @@ function ClusteringPane({
                     const minHeight = 3; // Minimum 3% height for any bar
                     const finalHeight = Math.max(linearHeight, bin.count > 0 ? minHeight : 0);
                     
+                    // Check if any selected clusters have this size
+                    const isActive = Array.from(selectedClusters).some(clusterIndex => 
+                      clusters[clusterIndex]?.length === bin.size
+                    );
+                    
                     return (
-                      <div key={`size-${bin.size}`} className="histogram-bar-container">
+                      <div 
+                        key={`size-${bin.size}`} 
+                        className="histogram-bar-container"
+                        onClick={(e) => handleHistogramBarClick(bin.size, e)}
+                        style={{ cursor: 'pointer' }}
+                        title={`Click to select ${bin.count} clusters with ${bin.size} particles. Cmd/Ctrl+click to add to selection.`}
+                      >
                         <div 
                           className="histogram-bar"
                           style={{ 
-                            height: `${finalHeight}%`
+                            height: `${finalHeight}%`,
+                            background: isActive 
+                              ? 'linear-gradient(to top, #e67e22, #f39c12)'
+                              : 'linear-gradient(to top, #3498db, #5dade2)',
+                            border: isActive ? '2px solid #d35400' : '1px solid #2980b9'
                           }}
-                          title={`${bin.count} clusters with ${bin.size} particles`}
                         />
                         <div className="histogram-labels">
-                          <span className="histogram-label-count">{bin.count}</span>
-                          <span className="histogram-label-size">{bin.size}</span>
+                          <span className="histogram-label-count" style={{ fontWeight: isActive ? 'bold' : 'normal' }}>
+                            {bin.count}
+                          </span>
+                          <span className="histogram-label-size" style={{ fontWeight: isActive ? 'bold' : 'normal' }}>
+                            {bin.size}
+                          </span>
                         </div>
                       </div>
                     );
@@ -377,7 +430,7 @@ function ClusteringPane({
           </div>
         )}
       </div>
-    </div>
+    </DraggablePanel>
   );
 }
 
