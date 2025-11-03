@@ -11,73 +11,14 @@ import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
 import { parseTopFile, getParticleType, parseLorenzoTopology, parseFlavioTopology, parseParticleTxt, parsePatchesTxt } from "./utils/topologyParser";
 import { buildTrajIndex, parseConfiguration } from "./utils/trajectoryLoader";
-import { applyPeriodicBoundary, calcCOM, applyPeriodicWrapping } from "./utils/geometryUtils";
+import { applyPeriodicBoundary, calcCOM, applyPeriodicWrapping, computeRotationMatrix } from "./utils/geometryUtils";
+import { selectFallbackTrajectoryFile, createFileMap } from "./utils/fileLoader";
 import { captureScreenshot, exportSceneAsGLTF } from "./utils/exportUtils";
 import { useParticleStore } from "./store/particleStore";
 import { useUIStore } from "./store/uiStore";
 import { useClusteringStore } from "./store/clusteringStore";
 import "./styles.css";
 
-// Helper function for fallback trajectory file prioritization
-function selectFallbackTrajectoryFile(trajectoryFiles) {
-  if (trajectoryFiles.length === 1) {
-    return trajectoryFiles[0];
-  }
-
-  console.log(`Found ${trajectoryFiles.length} potential trajectory files in fallback, applying prioritization...`);
-  
-  // Define priority keywords in order of preference (same as in fileTypeDetector)
-  const priorityKeywords = [
-    { keywords: ['traj'], priority: 1, name: 'trajectory' },
-    { keywords: ['last'], priority: 2, name: 'last configuration' },
-    { keywords: ['init'], priority: 3, name: 'initial configuration' },
-    { keywords: ['conf'], priority: 4, name: 'configuration' }
-  ];
-
-  // Score each file based on filename
-  const scoredFiles = trajectoryFiles.map(file => {
-    const fileName = file.name.toLowerCase();
-    let priority = 999; // Default low priority
-    let matchedType = 'other';
-    
-    // Check for priority keywords
-    for (const { keywords, priority: keywordPriority, name } of priorityKeywords) {
-      if (keywords.some(keyword => fileName.includes(keyword))) {
-        priority = keywordPriority;
-        matchedType = name;
-        break;
-      }
-    }
-    
-    return {
-      file,
-      priority,
-      matchedType,
-      fileName
-    };
-  });
-
-  // Sort by priority (lower number = higher priority)
-  scoredFiles.sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority - b.priority;
-    }
-    // If same priority, prefer alphabetically first
-    return a.fileName.localeCompare(b.fileName);
-  });
-
-  const selectedFile = scoredFiles[0];
-  console.log(`Selected fallback trajectory file: ${selectedFile.fileName} (type: ${selectedFile.matchedType})`);
-  
-  // Log the prioritization results
-  console.log('Fallback trajectory file prioritization:');
-  scoredFiles.forEach((scored, index) => {
-    const status = index === 0 ? '✓ SELECTED' : '  skipped';
-    console.log(`  ${status}: ${scored.fileName} (${scored.matchedType}, priority: ${scored.priority})`);
-  });
-
-  return selectedFile.file;
-}
 
 function App() {
   // Zustand stores
@@ -249,10 +190,7 @@ function App() {
       }
 
       // Create file map for compatibility with existing code
-      const fileMap = new Map();
-      files.forEach((file) => {
-        fileMap.set(file.name.trim(), file);
-      });
+      const fileMap = createFileMap(files);
 
       // Process topology file (only for non-MGL files)
       if (categorizedFiles.topology) {
@@ -398,42 +336,8 @@ function App() {
           topData,
         );
 
-        let rotationMatrix = null;
-        if (pos.a1 && pos.a3) {
-          // Compute a2 as cross product of a3 and a1
-          const a1 = new THREE.Vector3(
-            pos.a1.x,
-            pos.a1.y,
-            pos.a1.z,
-          ).normalize();
-          const a3 = new THREE.Vector3(
-            pos.a3.x,
-            pos.a3.y,
-            pos.a3.z,
-          ).normalize();
-          const a2 = new THREE.Vector3().crossVectors(a3, a1).normalize();
-
-          // Recompute a3 to ensure orthogonality
-          a3.crossVectors(a1, a2).normalize();
-
-          // Create the rotation matrix
-          const matrix = new THREE.Matrix3().set(
-            a1.x,
-            a2.x,
-            a3.x,
-            a1.y,
-            a2.y,
-            a3.y,
-            a1.z,
-            a2.z,
-            a3.z,
-          );
-
-          // Store matrix elements
-          rotationMatrix = {
-            elements: matrix.elements.slice(), // Clone the elements array
-          };
-        }
+        // Compute rotation matrix from orientation vectors
+        const rotationMatrix = computeRotationMatrix(pos, THREE);
 
         return {
           ...pos,
