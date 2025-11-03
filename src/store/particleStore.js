@@ -13,7 +13,16 @@ export const useParticleStore = create((set, get) => ({
   totalConfigs: 0,
   
   // Actions
-  setPositions: (positions) => set({ positions }),
+  setPositions: (positions) => {
+    // Validate that positions is an array
+    if (!Array.isArray(positions)) {
+      console.error('setPositions called with non-array value:', positions);
+      console.trace('Stack trace:');
+      set({ positions: [] });
+    } else {
+      set({ positions });
+    }
+  },
   setCurrentBoxSize: (boxSize) => set({ currentBoxSize: boxSize }),
   setTopData: (topData) => set({ topData }),
   setTrajFile: (trajFile) => set({ trajFile }),
@@ -26,6 +35,10 @@ export const useParticleStore = create((set, get) => ({
   // Computed values
   getUniqueParticleTypes: () => {
     const { positions } = get();
+    if (!Array.isArray(positions)) {
+      console.warn('positions is not an array:', positions);
+      return new Set();
+    }
     return new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined));
   },
 }));

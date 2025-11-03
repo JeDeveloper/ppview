@@ -35,7 +35,7 @@ function Particles({
   // Get current particle colors based on the selected scheme
   // Calculate the number of unique particle types for dynamic color generation
   const particleTypeCount = useMemo(() => {
-    if (!positions || positions.length === 0) return 0;
+    if (!positions || !Array.isArray(positions) || positions.length === 0) return 0;
     const uniqueTypes = new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined));
     return uniqueTypes.size;
   }, [positions]);
@@ -47,7 +47,7 @@ function Particles({
 
   // Memoize particle data to avoid recalculation
   const particleData = useMemo(() => {
-    if (!positions || positions.length === 0) return [];
+    if (!positions || !Array.isArray(positions) || positions.length === 0) return [];
     
     return positions.map((pos, i) => {
       const isInHighlightedCluster = highlightedClusters.has(i);
