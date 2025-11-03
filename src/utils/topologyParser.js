@@ -1,0 +1,435 @@
+import * as THREE from "three";
+
+// Helper functions for Flavio format parsing (following initSpecies pattern)
+const getScalar = (name, s) => {
+  const m = s.match(new RegExp(`${name}=(-?\\d+)`));
+  if (m) {
+    return parseFloat(m[1]);
+  }
+  return false;
+};
+
+const getArray = (name, s) => {
+  const m = s.match(new RegExp(`${name}=([\\,\\d\\.\\-\\+]+)`));
+  if (m) {
+    return m[1].split(',').map((v) => parseFloat(v));
+  }
+  return false;
+};
+
+// Function to parse particle.txt (following initSpecies logic)
+export const parseParticleTxt = (content) => {
+  // Remove whitespace following initSpecies pattern
+  const particlesStr = content.replaceAll(' ', '');
+  const particles = [];
+  let currentParticle = null;
+
+  for (const line of particlesStr.split('\n')) {
+    const particleID = line.match(/particle_(\d+)/);
+    if (particleID) {
+      if (currentParticle) {
+        particles.push(currentParticle);
+      }
+      currentParticle = { 'id': parseInt(particleID[1]) };
+    }
+    
+    const type = getScalar('type', line);
+    if (type !== false) {
+      currentParticle['type'] = type;
+    }
+    
+    const patches = getArray('patches', line);
+    if (patches !== false) {
+      currentParticle['patches'] = patches;
+    }
+  }
+  
+  if (currentParticle) {
+    particles.push(currentParticle);
+  }
+
+  return particles;
+};
+
+// Function to parse patches.txt (following initSpecies logic)
+export const parsePatchesTxt = (content) => {
+  // Remove whitespace following initSpecies pattern
+  const patchesStr = content.replaceAll(' ', '');
+  const patches = new Map();
+  let currentId;
+
+  for (const line of patchesStr.split('\n')) {
+    const patchID = line.match(/patch_(\d+)/);
+    if (patchID) {
+      currentId = parseInt(patchID[1]);
+      patches.set(currentId, {});
+    }
+    
+    const color = getScalar('color', line);
+    if (color !== false) {
+      patches.get(currentId)['color'] = color;
+    }
+    
+    // Handle position, a1, and a2 arrays
+    for (const k of ['position', 'a1', 'a2']) {
+      const a = getArray(k, line);
+      if (a) {
+        // Convert to THREE.Vector3 following initSpecies pattern
+        const v = new THREE.Vector3().fromArray(a);
+        patches.get(currentId)[k] = v;
+      }
+    }
+  }
+
+  // Convert Map to object for compatibility with existing code
+  const patchesData = {};
+  patches.forEach((patch, id) => {
+    patchesData[id] = {
+      id: id,
+      color: patch.color || 0,
+      position: patch.position ? {
+        x: patch.position.x,
+        y: patch.position.y,
+        z: patch.position.z
+      } : null,
+      a1: patch.a1 ? {
+        x: patch.a1.x,
+        y: patch.a1.y,
+        z: patch.a1.z
+      } : null,
+      a2: patch.a2 ? {
+        x: patch.a2.x,
+        y: patch.a2.y,
+        z: patch.a2.z
+      } : null
+    };
+  });
+
+  return patchesData;
+};
+
+// Function to parse Lorenzo's topology (following initLoroSpecies logic)
+export const parseLorenzoTopology = async (lines, fileMap) => {
+  const headerTokens = lines[0].trim().split(/\s+/).map(Number);
+  const totalParticles = headerTokens[0];
+  const typeCount = headerTokens[1];
+  
+  // Create particles array with types following initLoroSpecies pattern
+  const particles = [];
+  const patchSpecs = [];
+  const patchFileCache = new Map();
+  
+  // Parse topology lines to build particle type assignments
+  let particleIndex = 0;
+  for (let i = 1; i <= typeCount; i++) {
+    const line = lines[i];
+    const tokens = line.trim().split(/\s+/);
+    const count = Number(tokens[0]);
+    const patchCount = Number(tokens[1]);
+    const patches = tokens[2] ? tokens[2].split(",").map(Number) : [];
+    const fileName = tokens[3] ? tokens[3].trim() : "";
+    
+    // Create particles for this type following initLoroSpecies pattern
+    for (let j = 0; j < count; j++) {
+      particles.push({
+        type: (i - 1).toString(), // Convert to string to match initLoroSpecies
+        patchSpec: fileName || '' // Store patchSpec (filename) for each particle
+      });
+      particleIndex++;
+    }
+    
+    // Store patchSpec for this type
+    patchSpecs[i - 1] = fileName || '';
+  }
+  
+  // Following initLoroSpecies: const types = this.particles.map(p=>parseInt(p.type))
+  const types = particles.map(p => parseInt(p.type));
+  
+  // Following initLoroSpecies: count instances of each type
+  const instanceCounts = [];
+  types.forEach((s, i) => {
+    if (instanceCounts[s] === undefined) {
+      instanceCounts[s] = 1;
+    } else {
+      instanceCounts[s]++;
+    }
+  });
+  
+  // Create patchStrMap equivalent by loading patch files
+  const patchStrMap = new Map();
+  
+  // Load all unique patch files
+  const uniquePatchSpecs = [...new Set(patchSpecs)].filter(spec => spec && spec.trim() !== '');
+  
+  for (const patchSpec of uniquePatchSpecs) {
+    if (fileMap.has(patchSpec)) {
+      try {
+        const patchFile = fileMap.get(patchSpec);
+        const patchContent = await patchFile.text();
+        patchStrMap.set(patchSpec, patchContent.trim());
+      } catch (error) {
+        console.warn(`Error reading patch file '${patchSpec}':`, error);
+        patchStrMap.set(patchSpec, '');
+      }
+    } else {
+      console.warn(`Patch file '${patchSpec}' not found`);
+      patchStrMap.set(patchSpec, '');
+    }
+  }
+  
+  // Following initLoroSpecies: create species array
+  const particleTypes = [...new Set(types)].map(s => {
+    const patchSpec = patchSpecs[s];
+    let patchPositions = [];
+    let patches = [];
+    
+    if (patchSpec && patchStrMap.has(patchSpec)) {
+      const patchStrs = patchStrMap.get(patchSpec);
+      if (patchStrs && patchStrs.trim() !== '') {
+        // Following initLoroSpecies: parse patch strings
+        const patchLines = patchStrs.split('\n').filter(line => line.trim() !== '');
+        patchPositions = patchLines.map((vs, index) => {
+          const coords = vs.trim().split(/ +/g).map(v => parseFloat(v));
+          if (coords.length >= 3 && !coords.some(isNaN)) {
+            const pos = new THREE.Vector3().fromArray(coords);
+            return {
+              x: pos.x,
+              y: pos.y,
+              z: pos.z,
+              // Following initLoroSpecies: a1 and a2 are normalized position vectors
+              a1: { 
+                x: pos.clone().normalize().x,
+                y: pos.clone().normalize().y,
+                z: pos.clone().normalize().z
+              },
+              a2: {
+                x: pos.clone().normalize().x,
+                y: pos.clone().normalize().y,
+                z: pos.clone().normalize().z
+              },
+              patchId: index // Assign sequential patch IDs
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        
+        // Create patches array with sequential IDs
+        patches = patchPositions.map((_, index) => index);
+      }
+    }
+    
+    return {
+      typeIndex: s,
+      count: instanceCounts[s] || 0,
+      patches: patches,
+      patchPositions: patchPositions
+    };
+  });
+
+  return { totalParticles, typeCount, particleTypes };
+};
+
+// Function to parse Flavio's topology
+export const parseFlavioTopology = async (content, fileMap) => {
+  const lines = content.trim().split("\n");
+  const headerTokens = lines[0].trim().split(/\s+/).map(Number);
+  const totalParticles = headerTokens[0];
+  const typeCount = headerTokens[1];
+
+  // Second line contains particle types per particle
+  const typeLine = lines[1].trim();
+  const particleTypesList = typeLine.split(/\s+/).map(Number);
+
+  // Build particle types and counts
+  const particleTypes = [];
+  const typeCounts = {};
+
+  particleTypesList.forEach((typeIndex) => {
+    if (!typeCounts[typeIndex]) {
+      typeCounts[typeIndex] = 0;
+    }
+    typeCounts[typeIndex]++;
+  });
+
+  let particlesData = null;
+  let patchesData = null;
+
+  // Check for particles.txt file
+  const particleTxtFile = fileMap.get("particles.txt");
+  if (particleTxtFile) {
+    const particleTxtContent = await particleTxtFile.text();
+    particlesData = parseParticleTxt(particleTxtContent);
+  } else {
+    console.warn("particles.txt file is missing for Flavio format.");
+    // Proceed without particlesData
+  }
+
+  // Check for patches.txt file or .patch.txt files
+  let patchesTxtFile = fileMap.get("patches.txt");
+  
+  // If patches.txt not found, look for .patch.txt files
+  if (!patchesTxtFile) {
+    // Find any file with .patch.txt extension
+    for (const [fileName, file] of fileMap.entries()) {
+      if (fileName.toLowerCase().endsWith('.patch.txt')) {
+        patchesTxtFile = file;
+        console.log(`Using ${fileName} as patches file for Flavio format`);
+        break;
+      }
+    }
+  }
+  
+  if (patchesTxtFile) {
+    const patchesTxtContent = await patchesTxtFile.text();
+    patchesData = parsePatchesTxt(patchesTxtContent);
+  } else {
+    console.warn("patches.txt or .patch.txt file is missing for Flavio format.");
+    // Proceed without patchesData
+  }
+
+  // Build particle types array (following initSpecies pattern)
+  // Sort the type keys to ensure consistent ordering regardless of input order
+  Object.keys(typeCounts).sort((a, b) => Number(a) - Number(b)).forEach((typeIndex) => {
+    const count = typeCounts[typeIndex];
+    let patches = [];
+    let patchPositions = [];
+
+    if (particlesData && patchesData) {
+      const particlesOfType = particlesData.filter(
+        (p) => p.type === Number(typeIndex),
+      );
+
+      // Get unique patch IDs for this particle type
+      const uniquePatchIds = new Set();
+      particlesOfType.forEach((p) => {
+        if (p.patches && Array.isArray(p.patches)) {
+          p.patches.forEach(patchId => uniquePatchIds.add(patchId));
+        }
+      });
+
+      // Map patch IDs to patch objects following initSpecies pattern
+      patches = Array.from(uniquePatchIds);
+      
+      // Create patch positions array with the patch data
+      // Following initSpecies logic: particle['patches'] = particle['patches'].map(id=>patches.get(id))
+      patchPositions = patches
+        .map((patchId) => {
+          const patchData = patchesData[patchId];
+          if (patchData && patchData.position) {
+            return {
+              x: patchData.position.x,
+              y: patchData.position.y,
+              z: patchData.position.z,
+              // Include additional patch data for compatibility
+              patchId: patchId,
+              color: patchData.color,
+              a1: patchData.a1,
+              a2: patchData.a2
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      console.log(`Type ${typeIndex}: Found ${patches.length} unique patches, ${patchPositions.length} valid positions`);
+    }
+
+    const particleType = {
+      count,
+      typeIndex: Number(typeIndex),
+      patches: patches || [], // Ensure patches is always an array
+      patchPositions: patchPositions || [], // Ensure patchPositions is always an array
+    };
+    
+    console.log(`Particle type ${typeIndex} summary:`, {
+      count: particleType.count,
+      typeIndex: particleType.typeIndex,
+      patchCount: particleType.patches.length,
+      patchPositionCount: particleType.patchPositions.length,
+      patches: particleType.patches.slice(0, 3), // Show first 3 patch IDs
+      firstPatchPosition: particleType.patchPositions[0]
+    });
+    
+    particleTypes.push(particleType);
+  });
+
+  // For Flavio format, we need to create a mapping from particle index to type
+  // because particles are not grouped by type like in Lorenzo format
+  const particleTypeMapping = particleTypesList.map(typeIndex => {
+    // Find the particle type object for this type index
+    const particleType = particleTypes.find(pt => pt.typeIndex === typeIndex);
+    return {
+      typeIndex,
+      particleType: particleType || particleTypes[0] // fallback to first type if not found
+    };
+  });
+
+  return { 
+    totalParticles, 
+    typeCount, 
+    particleTypes,
+    particleTypeMapping // Add this for Flavio format
+  };
+};
+
+// Main function to parse the .top file (supports both Lorenzo's and Flavio's formats)
+export const parseTopFile = async (content, fileMap, detectedFormat = null) => {
+  const lines = content.trim().split("\n");
+
+  // Use detected format if provided, otherwise fall back to original detection logic
+  let isFlavioFormat;
+  if (detectedFormat) {
+    isFlavioFormat = detectedFormat === 'flavio';
+    console.log(`Using detected topology format: ${detectedFormat}`);
+  } else {
+    // Original detection logic as fallback
+    isFlavioFormat = !lines[1].includes(".");
+    console.log(`Using fallback topology format detection: ${isFlavioFormat ? 'flavio' : 'lorenzo'}`);
+  }
+
+  if (isFlavioFormat) {
+    // Parse Flavio's topology
+    return await parseFlavioTopology(content, fileMap);
+  } else {
+    // Parse Lorenzo's topology
+    return await parseLorenzoTopology(lines, fileMap);
+  }
+};
+
+// Function to get particle type based on index
+export const getParticleType = (particleIndex, topologyData) => {
+  // Check if this is Flavio format (has particleTypeMapping)
+  if (topologyData.particleTypeMapping) {
+    // Flavio format: direct particle index to type mapping
+    if (particleIndex < topologyData.particleTypeMapping.length) {
+      return topologyData.particleTypeMapping[particleIndex];
+    } else {
+      // Fallback to first type if index is out of range
+      const firstType = topologyData.particleTypes[0];
+      return {
+        typeIndex: firstType.typeIndex,
+        particleType: firstType,
+      };
+    }
+  } else {
+    // Lorenzo format: use cumulative counts
+    const particleTypes = topologyData.particleTypes;
+    let cumulativeCount = 0;
+    for (let i = 0; i < particleTypes.length; i++) {
+      cumulativeCount += particleTypes[i].count;
+      if (particleIndex < cumulativeCount) {
+        return {
+          typeIndex: particleTypes[i].typeIndex, // Use the assigned typeIndex
+          particleType: particleTypes[i],
+        };
+      }
+    }
+
+    // Default to the last type if not found
+    const lastType = particleTypes[particleTypes.length - 1];
+    return {
+      typeIndex: lastType.typeIndex,
+      particleType: lastType,
+    };
+  }
+};

@@ -1,0 +1,78 @@
+// Trajectory loading and parsing utilities
+
+// Build the trajectory index by scanning for "t =" markers
+export const buildTrajIndex = async (file) => {
+  const decoder = new TextDecoder("utf-8");
+  const reader = file.stream().getReader();
+  let result;
+  let offset = 0;
+  let index = [];
+  let partialLine = "";
+  const decoderOptions = { stream: true };
+
+  while (!(result = await reader.read()).done) {
+    const chunk = result.value;
+    const textChunk = decoder.decode(chunk, decoderOptions);
+    const lines = (partialLine + textChunk).split(/\r?\n/);
+    partialLine = lines.pop(); // Save the last line in case it's incomplete
+
+    for (const line of lines) {
+      if (line.startsWith("t =")) {
+        index.push(offset);
+      }
+      offset += new TextEncoder().encode(line + "\n").length;
+    }
+  }
+
+  // Handle the last partial line
+  if (partialLine.startsWith("t =")) {
+    index.push(offset);
+  }
+
+  return index;
+};
+
+// Function to parse a configuration from lines
+export const parseConfiguration = (lines) => {
+  let i = 0;
+  const timeLine = lines[i++].trim();
+  const time = parseFloat(timeLine.split("=")[1].trim());
+
+  const bLine = lines[i++].trim();
+  const bTokens = bLine.split("=");
+  const boxSize = bTokens[1].trim().split(/\s+/).map(Number);
+
+  const eLine = lines[i++].trim();
+  const energyTokens = eLine.split("=");
+  const energy = energyTokens[1].trim().split(/\s+/).map(Number);
+
+  const positions = [];
+  while (i < lines.length) {
+    const line = lines[i++].trim();
+    if (line === "") continue;
+    const tokens = line.split(/\s+/).map(Number);
+
+    // Updated to parse the additional columns
+    if (tokens.length >= 9) {
+      const [x, y, z, a1x, a1y, a1z, a3x, a3y, a3z, ...rest] = tokens;
+      positions.push({
+        x,
+        y,
+        z,
+        a1: { x: a1x, y: a1y, z: a1z },
+        a3: { x: a3x, y: a3y, z: a3z },
+      });
+    } else if (tokens.length >= 3) {
+      // Handle case where orientation data is missing
+      const [x, y, z] = tokens;
+      positions.push({ x, y, z });
+    }
+  }
+
+  return {
+    time,
+    boxSize,
+    energy,
+    positions,
+  };
+};
