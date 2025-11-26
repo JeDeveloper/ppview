@@ -11,27 +11,27 @@ import { useClusteringStore } from "../store/clusteringStore";
 // Coordinate Axis component using ArrowHelper - positioned at box corner
 function CoordinateAxis({ boxSize }) {
   const groupRef = useRef();
-  
+
   useEffect(() => {
     if (!groupRef.current) return;
-    
+
     // Clear existing arrows
     while (groupRef.current.children.length > 0) {
       groupRef.current.remove(groupRef.current.children[0]);
     }
-    
+
     // Arrow length scaled based on box size
     const arrowLength = Math.min(...boxSize) * 0.15; // 15% of smallest box dimension
     const arrowHeadLength = arrowLength * 0.2;
     const arrowHeadWidth = arrowLength * 0.1;
-    
+
     // Position at the bottom-left-back corner of the box
     const origin = new THREE.Vector3(
       -boxSize[0] / 2,  // Left edge
       -boxSize[1] / 2,  // Bottom edge  
       -boxSize[2] / 2   // Back edge
     );
-    
+
     // Create X-axis arrow (Dark Red - matching oxDNA reference 0x800000)
     const xDirection = new THREE.Vector3(1, 0, 0);
     const xArrow = new THREE.ArrowHelper(
@@ -44,7 +44,7 @@ function CoordinateAxis({ boxSize }) {
     );
     xArrow.name = 'x-axis';
     groupRef.current.add(xArrow);
-    
+
     // Create Y-axis arrow (Dark Green - matching oxDNA reference 0x008000)
     const yDirection = new THREE.Vector3(0, 1, 0);
     const yArrow = new THREE.ArrowHelper(
@@ -57,7 +57,7 @@ function CoordinateAxis({ boxSize }) {
     );
     yArrow.name = 'y-axis';
     groupRef.current.add(yArrow);
-    
+
     // Create Z-axis arrow (Dark Blue - matching oxDNA reference 0x000080)
     const zDirection = new THREE.Vector3(0, 0, 1);
     const zArrow = new THREE.ArrowHelper(
@@ -70,9 +70,9 @@ function CoordinateAxis({ boxSize }) {
     );
     zArrow.name = 'z-axis';
     groupRef.current.add(zArrow);
-    
+
   }, [boxSize]); // Update when boxSize changes
-  
+
   return <group ref={groupRef} />;
 }
 
@@ -80,27 +80,27 @@ function CoordinateAxis({ boxSize }) {
 function CameraFollowingLight() {
   const lightRef = useRef();
   const { camera } = useThree();
-  
+
   useFrame(() => {
     if (lightRef.current && camera) {
       // Position the light behind and above the camera
       const cameraDirection = new THREE.Vector3();
       camera.getWorldDirection(cameraDirection);
-      
+
       // Calculate position behind and above camera
       const lightPosition = camera.position.clone()
         .add(cameraDirection.clone().multiplyScalar(-5)) // Behind camera
         .add(new THREE.Vector3(0, 3, 0)); // Above camera
-      
+
       lightRef.current.position.copy(lightPosition);
-      
+
       // Make the light point towards where the camera is looking
       const target = camera.position.clone().add(cameraDirection.multiplyScalar(10));
       lightRef.current.target.position.copy(target);
       lightRef.current.target.updateMatrixWorld();
     }
   });
-  
+
   return (
     <>
       <spotLight
@@ -132,7 +132,7 @@ const ParticleScene = () => {
   // Get data from Zustand stores
   const positions = useParticleStore(state => state.positions);
   const currentBoxSize = useParticleStore(state => state.currentBoxSize);
-  
+
   const {
     selectedParticles,
     setSelectedParticles,
@@ -143,17 +143,22 @@ const ParticleScene = () => {
     showPatchLegend,
     currentColorScheme,
   } = useUIStore();
-  
+
   const {
     highlightedClusters,
     showOnlyHighlightedClusters,
   } = useClusteringStore();
   return (
-    <Canvas 
+    <Canvas
       camera={{ position: [100, 0, 0], fov: 45 }}
       frameloop="demand" // Only render when needed
       dpr={[1, 2]} // Adaptive pixel ratio for performance
-      gl={{ preserveDrawingBuffer: true }} // Enable screenshot capability
+      gl={{
+        preserveDrawingBuffer: true, // Enable screenshot capability
+        outputColorSpace: THREE.SRGBColorSpace, // Ensure correct color space for screenshots
+        toneMapping: THREE.ACESFilmicToneMapping, // Better color reproduction
+        toneMappingExposure: 1.0
+      }}
     >
       <SceneContent
         positions={positions}
@@ -209,7 +214,7 @@ function SceneContent({
       .add(new THREE.Vector3(0, 0, 5)); // Adjust the offset as needed
 
     isAnimating.current = true;
-    
+
     const animate = (time) => {
       const elapsed = (time - startTime) / 1000;
       const t = Math.min(elapsed / duration, 1);
@@ -247,24 +252,24 @@ function SceneContent({
 
   return (
     <>
-      <OrbitControls 
-        ref={controlsRef} 
+      <OrbitControls
+        ref={controlsRef}
         onChange={() => invalidate()} // Trigger re-render on camera changes
         enableDamping={true}
         dampingFactor={0.05}
       />
       {/* Molecular render lighting setup */}
-      
+
       {/* Very low ambient light for dramatic shadows */}
       <ambientLight intensity={0.15} color="#f0f0f0" />
-      
+
       {/* Camera-following area light */}
       <CameraFollowingLight />
-      
+
       {/* Strong key light for primary illumination and shadows */}
-      <directionalLight 
-        position={[15, 15, 10]} 
-        intensity={2.0} 
+      <directionalLight
+        position={[15, 15, 10]}
+        intensity={2.0}
         color="#ffffff"
         castShadow={true}
         shadow-mapSize-width={2048}
@@ -277,19 +282,19 @@ function SceneContent({
         shadow-camera-bottom={-50}
         shadow-bias={-0.0001}
       />
-      
+
       {/* Secondary rim light for edge definition */}
-      <directionalLight 
-        position={[-8, 5, -12]} 
-        intensity={0.8} 
+      <directionalLight
+        position={[-8, 5, -12]}
+        intensity={0.8}
         color="#e6f3ff"
         castShadow={false}
       />
-      
+
       {/* Subtle fill light to prevent complete darkness in shadows */}
-      <directionalLight 
-        position={[-5, -8, 5]} 
-        intensity={0.3} 
+      <directionalLight
+        position={[-5, -8, 5]}
+        intensity={0.3}
         color="#fff8e6"
         castShadow={false}
       />
@@ -308,10 +313,10 @@ function SceneContent({
           {/* XY plane at z=0 (back) */}
           <mesh position={[0, 0, -boxSize[2] / 2]} rotation={[0, 0, 0]}>
             <planeGeometry args={[boxSize[0], boxSize[1]]} />
-            <meshStandardMaterial 
-              color="#808080" 
-              transparent 
-              opacity={0.7} 
+            <meshStandardMaterial
+              color="#808080"
+              transparent
+              opacity={0.7}
               side={THREE.DoubleSide}
               depthWrite={false}
               metalness={0.2}
@@ -319,14 +324,14 @@ function SceneContent({
               envMapIntensity={1.0}
             />
           </mesh>
-          
+
           {/* XZ plane at y=0 (bottom) */}
           <mesh position={[0, -boxSize[1] / 2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[boxSize[0], boxSize[2]]} />
-            <meshStandardMaterial 
-              color="#808080" 
-              transparent 
-              opacity={0.7} 
+            <meshStandardMaterial
+              color="#808080"
+              transparent
+              opacity={0.7}
               side={THREE.DoubleSide}
               depthWrite={false}
               metalness={0.2}
@@ -334,14 +339,14 @@ function SceneContent({
               envMapIntensity={1.0}
             />
           </mesh>
-          
+
           {/* YZ plane at x=0 (left) */}
           <mesh position={[-boxSize[0] / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
             <planeGeometry args={[boxSize[2], boxSize[1]]} />
-            <meshStandardMaterial 
-              color="#808080" 
-              transparent 
-              opacity={0.7} 
+            <meshStandardMaterial
+              color="#808080"
+              transparent
+              opacity={0.7}
               side={THREE.DoubleSide}
               depthWrite={false}
               metalness={0.2}

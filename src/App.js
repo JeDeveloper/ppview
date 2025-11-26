@@ -9,15 +9,30 @@ import ColorSchemeSelector from "./components/ColorSchemeSelector";
 import ClusteringPane from "./components/ClusteringPane";
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
-import { parseTopFile, getParticleType, parseLorenzoTopology, parseFlavioTopology, parseParticleTxt, parsePatchesTxt } from "./utils/topologyParser";
+import { parseTopFile, getParticleType } from "./utils/topologyParser";
 import { buildTrajIndex, parseConfiguration } from "./utils/trajectoryLoader";
-import { applyPeriodicBoundary, calcCOM, applyPeriodicWrapping, computeRotationMatrix } from "./utils/geometryUtils";
+import { applyPeriodicBoundary, applyPeriodicWrapping, computeRotationMatrix } from "./utils/geometryUtils";
 import { selectFallbackTrajectoryFile, createFileMap } from "./utils/fileLoader";
 import { captureScreenshot, exportSceneAsGLTF } from "./utils/exportUtils";
 import { useParticleStore } from "./store/particleStore";
 import { useUIStore } from "./store/uiStore";
 import { useClusteringStore } from "./store/clusteringStore";
 import "./styles.css";
+import {
+  PlayIcon, PauseIcon, ResetIcon, SpeedIcon, TagIcon, CircleIcon,
+  BoxIcon, LayersIcon, RulerIcon, ChartIcon, CameraIcon, DownloadIcon,
+  ChevronUpIcon, ChevronDownIcon, CloseIcon, AxisIcon
+} from "./components/Icons";
+
+const ToggleBtn = ({ checked, onChange, icon, title }) => (
+  <button
+    className={`toggle-icon-btn ${checked ? 'active' : ''}`}
+    onClick={() => onChange(!checked)}
+    title={title}
+  >
+    {icon}
+  </button>
+);
 
 
 function App() {
@@ -41,7 +56,7 @@ function App() {
     setCurrentEnergy,
     setTotalConfigs,
   } = useParticleStore();
-  
+
   const {
     showPatchLegend,
     showParticleLegend,
@@ -74,13 +89,13 @@ function App() {
     setPlaybackSpeed,
     setIsSpeedPopupVisible,
   } = useUIStore();
-  
+
   const highlightedClusters = useClusteringStore(state => state.highlightedClusters);
-  
+
   // Refs
   const playbackIntervalRef = useRef(null);
   const speedPopupRef = useRef(null);
-  
+
   // Function to show notification (for iframe mode)
   const notify = useCallback((message) => {
     console.warn('PPView Notification:', message);
@@ -89,7 +104,7 @@ function App() {
       alert(message);
     }
   }, [isIframeMode]);
-  
+
   // Function to trigger scene re-render when needed
   const invalidateScene = useCallback(() => {
     if (sceneRef && sceneRef.invalidate) {
@@ -120,21 +135,21 @@ function App() {
       console.log("Analyzing file types...");
       const filesWithTypes = await analyzeFiles(files);
       const categorizedFiles = categorizeFiles(filesWithTypes);
-      
+
       console.log("File analysis results:", categorizedFiles);
 
       // Process MGL files first (they don't need topology)
       if (categorizedFiles.mglFile || categorizedFiles.mglTrajectory) {
         try {
           let mglData, ppviewData;
-          
+
           if (categorizedFiles.mglFile) {
             const mglContent = await categorizedFiles.mglFile.text();
             console.log(`Processing MGL file: ${categorizedFiles.mglFile.name}`);
-            
+
             mglData = readMGL(mglContent);
             ppviewData = convertMGLToPPViewFormat(mglData);
-            
+
             // Set up data for ppview
             setTopData(ppviewData.topData);
             setPositions(ppviewData.positions);
@@ -143,28 +158,28 @@ function App() {
             setCurrentEnergy([0]);
             setConfigIndex([0]); // Single frame
             setTotalConfigs(1);
-            
+
             console.log(`Loaded MGL file with ${ppviewData.positions.length} particles`);
           } else {
             const mglTrajectoryContent = await categorizedFiles.mglTrajectory.text();
             console.log(`Processing MGL Trajectory file: ${categorizedFiles.mglTrajectory.name}`);
-            
+
             mglData = readMGLTrajectory(mglTrajectoryContent);
             ppviewData = convertMGLToPPViewFormat(mglData);
-            
+
             // Set up data for ppview
             setTopData(ppviewData.topData);
             setPositions(ppviewData.positions);
             setCurrentBoxSize(ppviewData.boxSize);
             setCurrentTime(0);
             setCurrentEnergy([0]);
-            
+
             // Create trajectory index for frame navigation if multiple frames
             if (mglData.frameCount > 1) {
               const fakeIndex = Array.from({ length: mglData.frameCount }, (_, i) => i);
               setConfigIndex(fakeIndex);
               setTotalConfigs(mglData.frameCount);
-              
+
               // Store trajectory data for frame switching
               setTrajFile({
                 ...categorizedFiles.mglTrajectory,
@@ -174,10 +189,10 @@ function App() {
               setConfigIndex([0]);
               setTotalConfigs(1);
             }
-            
+
             console.log(`Loaded MGL trajectory with ${mglData.frameCount} frames and ${mglData.totalParticles} total particles`);
           }
-          
+
           setIsLoading(false);
           return; // Exit early since MGL is self-contained
         } catch (error) {
@@ -229,7 +244,7 @@ function App() {
             file.name.includes("init") ||
             file.name.endsWith(".dat")
         );
-        
+
         if (fallbackTrajectoryFiles.length > 0) {
           // Apply same prioritization logic for fallback files
           const selectedFile = selectFallbackTrajectoryFile(fallbackTrajectoryFiles);
@@ -251,7 +266,7 @@ function App() {
           file.name.includes("last") ||
           file.name.endsWith(".dat")
       );
-      
+
       if (trajectoryFileToUse) {
         const index = await buildTrajIndex(trajectoryFileToUse);
         setConfigIndex(index);
@@ -305,7 +320,7 @@ function App() {
 
       const frame = mglData.frames[configNumber];
       const ppviewData = convertMGLToPPViewFormat({ frames: [frame] });
-      
+
       setPositions(ppviewData.positions);
       setCurrentBoxSize(ppviewData.boxSize);
       setCurrentTime(configNumber); // Use frame index as time
@@ -432,34 +447,34 @@ function App() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isSpeedPopupVisible]);
+  }, [isSpeedPopupVisible, setIsSpeedPopupVisible]);
 
   // Function to shift positions along an axis
   const shiftPositions = useCallback(
     (axis, delta) => {
       // Get current positions from store (Zustand doesn't support function updaters)
       const currentPositions = useParticleStore.getState().positions;
-      
+
       // Safeguard: ensure currentPositions is an array
       if (!Array.isArray(currentPositions)) {
         console.error('shiftPositions: currentPositions is not an array:', currentPositions);
         return;
       }
-      
+
       const shiftedPositions = currentPositions.map((pos) => {
         const newPos = { ...pos };
         newPos[axis] = pos[axis] + delta;
         return newPos;
       });
-      
+
       // Apply only periodic wrapping without re-centering
       const adjustedPositions = applyPeriodicWrapping(
         shiftedPositions,
         currentBoxSize,
       );
-      
+
       setPositions(adjustedPositions);
-      
+
       // Trigger re-render when translation happens
       setTimeout(invalidateScene, 0);
     },
@@ -486,10 +501,10 @@ function App() {
     try {
       // Export GLTF
       exportGLTF();
-      
+
       // Take screenshot
       takeScreenshot();
-      
+
       console.log('Output files generated successfully');
     } catch (error) {
       console.error('Error generating output files:', error);
@@ -499,7 +514,7 @@ function App() {
   // Message handler for iframe communication
   const handleMessage = useCallback((data) => {
     console.log('PPView received message:', data);
-    
+
     if (data.message === 'drop') {
       handleFilesReceived(data.files);
     }
@@ -515,12 +530,12 @@ function App() {
       let files = data.files;
       let ext = data.ext;
       let view_settings = data.view_settings;
-      
+
       if (files.length !== ext.length) {
         notify("Make sure you pass all files with extensions");
         return;
       }
-      
+
       // Apply view settings if present
       if (view_settings) {
         if ("Box" in view_settings) {
@@ -545,12 +560,12 @@ function App() {
           setIsControlsVisible(view_settings["Controls"]);
         }
       }
-      
+
       // Set the names and extensions for every passed file
       for (let i = 0; i < files.length; i++) {
         files[i].name = `${i}.${ext[i]}`;
       }
-      
+
       handleFilesReceived(files);
       return;
     }
@@ -558,20 +573,20 @@ function App() {
       console.log(data.message, "is not a recognized message");
       return;
     }
-  }, [handleFilesReceived, makeOutputFiles, notify]);
+  }, [handleFilesReceived, makeOutputFiles, notify, setIsControlsVisible, setIsDragDropEnabled, setShowBackdropPlanes, setShowClusteringPane, setShowCoordinateAxis, setShowParticleLegend, setShowPatchLegend, setShowSimulationBox]);
 
   // useEffect to detect iframe mode (run only once on mount)
   useEffect(() => {
     // Check if running in iframe
     const isInIframe = window.self !== window.top;
     setIsIframeMode(isInIframe);
-    
+
     if (isInIframe) {
       console.log('PPView: Running in iframe mode');
       // Hide controls by default in iframe mode
       setIsControlsVisible(false);
     }
-  }, []); // Empty dependency array - run only once on mount
+  }, [setIsControlsVisible, setIsIframeMode]);
 
   // useEffect to set up message listener
   useEffect(() => {
@@ -583,9 +598,9 @@ function App() {
         console.error('Error handling message:', error);
       }
     };
-    
+
     window.addEventListener('message', messageListener);
-    
+
     return () => {
       window.removeEventListener('message', messageListener);
     };
@@ -637,8 +652,8 @@ function App() {
   return (
     <div className="App">
       {!filesDropped && (
-        <FileDropZone 
-          onFilesReceived={handleFilesReceived} 
+        <FileDropZone
+          onFilesReceived={handleFilesReceived}
           isDragDropEnabled={isDragDropEnabled}
           onDisabledDrop={() => notify("Dragging onto embedded viewer does not allow form completion")}
         />
@@ -647,186 +662,146 @@ function App() {
         <ParticleScene />
       )}
       {positions.length > 0 && !isLoading && (
-        <>
-          <div className="controls-toggle">
-            <button 
-              className="toggle-button" 
-              onClick={() => setIsControlsVisible(!isControlsVisible)}
+        <div className={`controls-wrapper ${isControlsVisible ? 'visible' : 'minimized'}`}>
+          {!isControlsVisible && (
+            <button
+              className="show-controls-btn"
+              onClick={() => setIsControlsVisible(true)}
             >
-              {isControlsVisible ? '▼ Hide Controls' : '▲ Show Controls'}
+              <ChevronUpIcon /> Show Controls
             </button>
-          </div>
+          )}
+
           {isControlsVisible && (
-            <div className="controls">
-              {/* First row: Trajectory controls and buttons */}
-              <div className="controls-top-row">
-                <div className="playback-controls">
-                  <button 
-                    className="playback-button" 
-                    onClick={togglePlayback}
-                    title={isPlaying ? "Pause" : "Play"}
-                  >
-                    {isPlaying ? "⏸️" : "▶️"}
+            <div className="controls-panel">
+              <div className="controls-header">
+                <div className="playback-group">
+                  <button className="icon-btn" onClick={resetTrajectory} title="Reset">
+                    <ResetIcon size={20} />
                   </button>
-                  <button 
-                    className="playback-button" 
-                    onClick={resetTrajectory}
-                    title="Reset to beginning"
-                  >
-                    ⏮️
+                  <button className="icon-btn primary" onClick={togglePlayback} title={isPlaying ? "Pause" : "Play"}>
+                    {isPlaying ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
                   </button>
-                  <div className="speed-control">
-                    <button 
-                      className="speed-button"
+
+                  <div className="speed-control-wrapper">
+                    <button
+                      className="icon-btn speed-trigger"
                       onClick={() => setIsSpeedPopupVisible(!isSpeedPopupVisible)}
-                      title="Adjust playback speed"
+                      title="Playback Speed"
                     >
-                      ⚡ {(1000/playbackSpeed).toFixed(1)} fps
+                      <SpeedIcon size={18} />
+                      <span className="speed-text">{(1000 / playbackSpeed).toFixed(1)}x</span>
                     </button>
                     {isSpeedPopupVisible && (
                       <div className="speed-popup" ref={speedPopupRef}>
-                        <div className="speed-popup-content">
-                          <label htmlFor="speed-slider" className="speed-label">Speed:</label>
+                        <div className="popup-header">
+                          <span>Playback Speed</span>
+                          <button className="close-btn" onClick={() => setIsSpeedPopupVisible(false)}>
+                            <CloseIcon size={14} />
+                          </button>
+                        </div>
+                        <div className="popup-content">
                           <input
-                            id="speed-slider"
                             type="range"
                             min="50"
                             max="2000"
                             step="50"
                             value={playbackSpeed}
                             onChange={(e) => setPlaybackSpeed(parseInt(e.target.value))}
-                            className="speed-slider"
+                            className="styled-slider"
                           />
-                          <span className="speed-display">{(1000/playbackSpeed).toFixed(1)} fps</span>
-                          <button 
-                            className="speed-close"
-                            onClick={() => setIsSpeedPopupVisible(false)}
-                          >
-                            ✕
-                          </button>
+                          <div className="speed-value">{(1000 / playbackSpeed).toFixed(1)} fps</div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
-                
-                {/* Icon toggles section */}
-                <div className="icon-toggles">
-                  {/* Checkbox to toggle Patch legend */}
-                  <label className="icon-toggle" title="Show Patch Legend">
-                    <input
-                      type="checkbox"
-                      checked={showPatchLegend}
-                      onChange={(e) => setShowPatchLegend(e.target.checked)}
-                    />
-                    <span className="toggle-icon">🏷️</span>
-                  </label>
-                  {/* Checkbox to toggle Particle legend */}
-                  <label className="icon-toggle" title="Show Particle Legend">
-                    <input
-                      type="checkbox"
-                      checked={showParticleLegend}
-                      onChange={(e) => setShowParticleLegend(e.target.checked)}
-                    />
-                    <span className="toggle-icon">⚫</span>
-                  </label>
-                  {/* Checkbox to toggle Simulation Box */}
-                  <label className="icon-toggle" title="Show Backdrop Planes">
-                    <input
-                      type="checkbox"
-                      checked={showBackdropPlanes}
-                      onChange={(e) => setShowBackdropPlanes(e.target.checked)}
-                    />
-                    <span className="toggle-icon">🗂️</span>
-                  </label>
-                  <label className="icon-toggle" title="Show Simulation Box">
-                    <input
-                      type="checkbox"
-                      checked={showSimulationBox}
-                      onChange={(e) => setShowSimulationBox(e.target.checked)}
-                    />
-                    <span className="toggle-icon">📦</span>
-                  </label>
-                  {/* Checkbox to toggle Coordinate Axis */}
-                  <label className="icon-toggle" title="Show Coordinate Axis">
-                    <input
-                      type="checkbox"
-                      checked={showCoordinateAxis}
-                      onChange={(e) => setShowCoordinateAxis(e.target.checked)}
-                    />
-                    <span className="toggle-icon">📐</span>
-                  </label>
-                  {/* Checkbox to toggle Clustering Pane */}
-                  <label className="icon-toggle" title="Show Clustering Pane">
-                    <input
-                      type="checkbox"
-                      checked={showClusteringPane}
-                      onChange={(e) => setShowClusteringPane(e.target.checked)}
-                    />
-                    <span className="toggle-icon">📊</span>
-                  </label>
+
+                <div className="toggles-group">
+                  <ToggleBtn checked={showPatchLegend} onChange={setShowPatchLegend} icon={<TagIcon size={18} />} title="Patch Legend" />
+                  <ToggleBtn checked={showParticleLegend} onChange={setShowParticleLegend} icon={<CircleIcon size={18} />} title="Particle Legend" />
+                  <ToggleBtn checked={showBackdropPlanes} onChange={setShowBackdropPlanes} icon={<LayersIcon size={18} />} title="Backdrop Planes" />
+                  <ToggleBtn checked={showClusteringPane} onChange={setShowClusteringPane} icon={<ChartIcon size={18} />} title="Clustering Pane" />
+                  <ToggleBtn checked={showCoordinateAxis} onChange={setShowCoordinateAxis} icon={<AxisIcon size={18} />} title="Coordinate Axis" />
                 </div>
-                
-                {/* Color scheme selector */}
-                <div className="color-scheme-section">
-                  <ColorSchemeSelector />
-                </div>
-                
-                {/* Action buttons */}
-                <div className="action-buttons">
-                  <button className="screenshot-button" onClick={takeScreenshot}>
-                    📸 Take Screenshot (P)
-                  </button>
-                  <button className="export-button" onClick={exportGLTF}>
-                    📁 Export GLTF
-                  </button>
+
+                <button
+                  className="hide-controls-btn"
+                  onClick={() => setIsControlsVisible(false)}
+                  title="Hide Controls"
+                >
+                  <ChevronDownIcon size={20} />
+                </button>
+              </div>
+
+              <div className="controls-body">
+                <div className="timeline-container">
+                  <input
+                    type="range"
+                    min="0"
+                    max={totalConfigs - 1}
+                    value={currentConfigIndex}
+                    onChange={handleSliderChange}
+                    className="timeline-slider"
+                  />
+                  <div className="timeline-info">
+                    <span className="info-item"><strong>Config:</strong> {currentConfigIndex + 1} / {totalConfigs}</span>
+                    <span className="info-item"><strong>Time:</strong> {typeof currentTime === 'number' ? currentTime.toLocaleString() : currentTime}</span>
+                  </div>
                 </div>
               </div>
-              
-              {/* Second row: Trajectory slider and info */}
-              <div className="controls-bottom-row">
-                <input
-                  type="range"
-                  min="0"
-                  max={totalConfigs - 1}
-                  value={currentConfigIndex}
-                  onChange={handleSliderChange}
-                  className="trajectory-slider"
-                />
-                <div className="config-time-info">
-                  <div className="config-text">
-                    Configuration: {currentConfigIndex + 1} / {totalConfigs}
-                  </div>
-                  <div className="time-text">Time: {currentTime.toLocaleString()}</div>
+
+              <div className="controls-footer">
+                <div className="color-scheme-wrapper">
+                  <ColorSchemeSelector />
+                </div>
+                <div className="actions-group">
+                  <button className="action-btn" onClick={takeScreenshot} title="Take Screenshot (P)">
+                    <CameraIcon size={16} />
+                    <span>Screenshot</span>
+                  </button>
+                  <button className="action-btn" onClick={exportGLTF} title="Export Scene">
+                    <DownloadIcon size={16} />
+                    <span>Export GLTF</span>
+                  </button>
                 </div>
               </div>
             </div>
           )}
-        </>
-      )}
+        </div>
+      )
+      }
       {/* Conditionally render the SelectedParticlesDisplay component */}
       <SelectedParticlesDisplay />
-      
+
       {/* Conditionally render the PatchLegend component */}
-      {topData && showPatchLegend && !isLoading && (
-        <PatchLegend />
-      )}
-      
+      {
+        topData && showPatchLegend && !isLoading && (
+          <PatchLegend />
+        )
+      }
+
       {/* Conditionally render the ParticleLegend component */}
-      {topData && showParticleLegend && !isLoading && (
-        <ParticleLegend />
-      )}
+      {
+        topData && showParticleLegend && !isLoading && (
+          <ParticleLegend />
+        )
+      }
       {/* Conditionally render the ClusteringPane component */}
-      {positions.length > 0 && showClusteringPane && !isLoading && (
-        <ClusteringPane />
-      )}
-      {isLoading && (
-        <div className="loading-overlay">
-          <div className="loading-spinner" />
-          <p>Loading trajectory data...</p>
-        </div>
-      )}
-    </div>
+      {
+        positions.length > 0 && showClusteringPane && !isLoading && (
+          <ClusteringPane />
+        )
+      }
+      {
+        isLoading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner" />
+            <p>Loading trajectory data...</p>
+          </div>
+        )
+      }
+    </div >
   );
 }
 

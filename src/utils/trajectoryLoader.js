@@ -54,7 +54,7 @@ export const parseConfiguration = (lines) => {
 
     // Updated to parse the additional columns
     if (tokens.length >= 9) {
-      const [x, y, z, a1x, a1y, a1z, a3x, a3y, a3z, ...rest] = tokens;
+      const [x, y, z, a1x, a1y, a1z, a3x, a3y, a3z] = tokens;
       positions.push({
         x,
         y,

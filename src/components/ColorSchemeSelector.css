@@ -1,4 +1,4 @@
-/* ColorSchemeSelector.css */
+/* ColorSchemeSelector.css - Dark Glassmorphism Theme */
 
 .color-scheme-selector {
   position: relative;
@@ -12,39 +12,43 @@
 }
 
 .scheme-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #333;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
+  letter-spacing: 0.5px;
 }
 
 .current-scheme-button {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: white;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
   cursor: pointer;
   font-size: 12px;
   transition: all 0.2s ease;
-  min-width: 140px;
+  min-width: 160px;
   justify-content: space-between;
 }
 
 .current-scheme-button:hover {
-  border-color: #007acc;
-  background-color: #f8f9fa;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
 }
 
 .scheme-name {
   font-weight: 500;
-  color: #333;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
 }
 
 .dropdown-arrow {
-  color: #666;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 10px;
   transition: transform 0.2s ease;
 }
@@ -52,18 +56,19 @@
 .color-preview {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .color-dot {
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .color-more {
   font-size: 9px;
-  color: #666;
+  color: rgba(255, 255, 255, 0.6);
   margin-left: 2px;
   font-weight: 500;
 }
@@ -74,11 +79,12 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  margin-top: 4px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-top: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 
@@ -98,18 +104,18 @@
 }
 
 .scheme-option:hover {
-  background-color: #f8f9fa;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .scheme-option.selected {
-  background-color: #e3f2fd;
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .scheme-option-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 
 .scheme-info {
@@ -122,13 +128,32 @@
 .scheme-option-name {
   font-size: 12px;
   font-weight: 500;
-  color: #333;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .selected-indicator {
-  color: #007acc;
+  color: #60a5fa;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 14px;
+}
+
+/* Scrollbar styling */
+.scheme-dropdown-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scheme-dropdown-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.scheme-dropdown-content::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.5);
+  border-radius: 3px;
+}
+
+.scheme-dropdown-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.7);
 }
 
 /* Responsive adjustments */
@@ -136,64 +161,17 @@
   .color-scheme-selector {
     width: 100%;
   }
-  
+
   .current-scheme-button {
     min-width: 120px;
     font-size: 11px;
   }
-  
-  .scheme-label {
-    font-size: 11px;
-  }
-  
-  .scheme-option-name {
-    font-size: 11px;
-  }
-}
 
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
   .scheme-label {
-    color: #ddd;
+    font-size: 10px;
   }
-  
-  .current-scheme-button {
-    background: #2d3748;
-    border-color: #4a5568;
-    color: #e2e8f0;
-  }
-  
-  .current-scheme-button:hover {
-    background-color: #374151;
-    border-color: #60a5fa;
-  }
-  
-  .scheme-name {
-    color: #e2e8f0;
-  }
-  
-  .dropdown-arrow {
-    color: #a0aec0;
-  }
-  
-  .scheme-dropdown {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-  
-  .scheme-option:hover {
-    background-color: #374151;
-  }
-  
-  .scheme-option.selected {
-    background-color: #2c5282;
-  }
-  
+
   .scheme-option-name {
-    color: #e2e8f0;
-  }
-  
-  .selected-indicator {
-    color: #60a5fa;
+    font-size: 11px;
   }
 }
