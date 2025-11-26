@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, Stats } from "@react-three/drei";
+import { OrbitControls, Stats, Environment } from "@react-three/drei";
 import Particles from "./Particles";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
@@ -76,58 +76,6 @@ function CoordinateAxis({ boxSize }) {
   return <group ref={groupRef} />;
 }
 
-// Camera-following area light component for molecular render look
-function CameraFollowingLight() {
-  const lightRef = useRef();
-  const { camera } = useThree();
-
-  useFrame(() => {
-    if (lightRef.current && camera) {
-      // Position the light behind and above the camera
-      const cameraDirection = new THREE.Vector3();
-      camera.getWorldDirection(cameraDirection);
-
-      // Calculate position behind and above camera
-      const lightPosition = camera.position.clone()
-        .add(cameraDirection.clone().multiplyScalar(-5)) // Behind camera
-        .add(new THREE.Vector3(0, 3, 0)); // Above camera
-
-      lightRef.current.position.copy(lightPosition);
-
-      // Make the light point towards where the camera is looking
-      const target = camera.position.clone().add(cameraDirection.multiplyScalar(10));
-      lightRef.current.target.position.copy(target);
-      lightRef.current.target.updateMatrixWorld();
-    }
-  });
-
-  return (
-    <>
-      <spotLight
-        ref={lightRef}
-        intensity={2.5}
-        angle={Math.PI / 3} // 60 degree cone
-        penumbra={0.2} // Soft edges
-        distance={100}
-        decay={2}
-        color="#ffffff"
-        castShadow={true}
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-near={0.1}
-        shadow-camera-far={100}
-        shadow-bias={-0.0001}
-      />
-      {/* Helper to visualize light target */}
-      <object3D ref={(ref) => {
-        if (ref && lightRef.current) {
-          lightRef.current.target = ref;
-        }
-      }} />
-    </>
-  );
-}
-
 const ParticleScene = () => {
   // Get data from Zustand stores
   const positions = useParticleStore(state => state.positions);
@@ -150,6 +98,7 @@ const ParticleScene = () => {
   } = useClusteringStore();
   return (
     <Canvas
+      shadows // Enable shadows for the scene
       camera={{ position: [100, 0, 0], fov: 45 }}
       frameloop="demand" // Only render when needed
       dpr={[1, 2]} // Adaptive pixel ratio for performance
@@ -157,7 +106,7 @@ const ParticleScene = () => {
         preserveDrawingBuffer: true, // Enable screenshot capability
         outputColorSpace: THREE.SRGBColorSpace, // Ensure correct color space for screenshots
         toneMapping: THREE.ACESFilmicToneMapping, // Better color reproduction
-        toneMappingExposure: 1.0
+        toneMappingExposure: 0.7 // Balanced for shadows visibility
       }}
     >
       <SceneContent
@@ -258,44 +207,65 @@ function SceneContent({
         enableDamping={true}
         dampingFactor={0.05}
       />
-      {/* Molecular render lighting setup */}
+      {/* ========== PHYSICALLY BASED LIGHTING SETUP ========== */}
 
-      {/* Very low ambient light for dramatic shadows */}
-      <ambientLight intensity={0.15} color="#f0f0f0" />
-
-      {/* Camera-following area light */}
-      <CameraFollowingLight />
-
-      {/* Strong key light for primary illumination and shadows */}
-      <directionalLight
-        position={[15, 15, 10]}
-        intensity={2.0}
-        color="#ffffff"
-        castShadow={true}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-near={0.5}
-        shadow-camera-far={500}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
-        shadow-bias={-0.0001}
+      {/* Environment map for realistic reflections and ambient lighting */}
+      <Environment
+        preset="studio" // Professional studio lighting preset
+        background={false} // Don't replace the background
+        environmentIntensity={0.3} // More subtle environment reflections
       />
 
-      {/* Secondary rim light for edge definition */}
+      {/* Hemisphere light for natural sky/ground illumination */}
+      <hemisphereLight
+        skyColor="#87CEEB" // Sky blue
+        groundColor="#2C2C2C" // Dark ground
+        intensity={0.25}
+        position={[0, 10, 0]}
+      />
+
+      {/* Low ambient light for base illumination */}
+      <ambientLight intensity={0.3} color="#ffffff" />
+
+      {/* Strong key light - primary illumination with high quality shadows */}
+      <directionalLight
+        position={[20, 25, 15]}
+        intensity={1.2}
+        color="#ffffff"
+        castShadow={true}
+        shadow-mapSize-width={4096}
+        shadow-mapSize-height={4096}
+        shadow-camera-near={0.1}
+        shadow-camera-far={500}
+        shadow-camera-left={-100}
+        shadow-camera-right={100}
+        shadow-camera-top={100}
+        shadow-camera-bottom={-100}
+        shadow-bias={-0.00005}
+        shadow-normalBias={0.02}
+      />
+
+      {/* Secondary fill light - warmer tone for depth */}
+      <directionalLight
+        position={[-15, 10, -10]}
+        intensity={0.4}
+        color="#fff8e6"
+        castShadow={false}
+      />
+
+      {/* Rim light for edge definition - cooler tone */}
       <directionalLight
         position={[-8, 5, -12]}
-        intensity={0.8}
+        intensity={0.3}
         color="#e6f3ff"
         castShadow={false}
       />
 
-      {/* Subtle fill light to prevent complete darkness in shadows */}
+      {/* Bottom fill to prevent complete darkness in shadows */}
       <directionalLight
-        position={[-5, -8, 5]}
-        intensity={0.3}
-        color="#fff8e6"
+        position={[0, -10, 0]}
+        intensity={0.15}
+        color="#f0f0f0"
         castShadow={false}
       />
 
@@ -366,13 +336,13 @@ function SceneContent({
         onParticleDoubleClick={handleParticleDoubleClick}
       />
 
-      {/* Add SSAO for ambient occlusion effect */}
+      {/* Add subtle SSAO for gentle ambient occlusion */}
       <EffectComposer enableNormalPass>
         <SSAO
           samples={31}
-          radius={0.5}
-          intensity={20}
-          luminanceInfluence={0.9}
+          radius={0.3}
+          intensity={12}
+          luminanceInfluence={0.6}
           color="#000000"
         />
       </EffectComposer>

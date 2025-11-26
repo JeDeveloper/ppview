@@ -26,8 +26,11 @@ function Particles({
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        metalness: 0.0,
-        roughness: 0.8,
+        metalness: 0.1, // Slight metallic look
+        roughness: 0.7, // Slightly smoother for better reflections
+        envMapIntensity: 1.0, // Full environment map reflection
+        emissive: 0x000000, // No emissive by default
+        emissiveIntensity: 0.05, // Subtle glow
       }),
     [],
   );
@@ -39,20 +42,20 @@ function Particles({
     const uniqueTypes = new Set(positions.map(pos => pos.typeIndex).filter(type => type !== undefined));
     return uniqueTypes.size;
   }, [positions]);
-  
-  const particleColors = useMemo(() => 
-    getParticleColors(colorScheme, particleTypeCount), 
+
+  const particleColors = useMemo(() =>
+    getParticleColors(colorScheme, particleTypeCount),
     [colorScheme, particleTypeCount]
   );
 
   // Memoize particle data to avoid recalculation
   const particleData = useMemo(() => {
     if (!positions || !Array.isArray(positions) || positions.length === 0) return [];
-    
+
     return positions.map((pos, i) => {
       const isInHighlightedCluster = highlightedClusters.has(i);
       const shouldShow = !showOnlyHighlightedClusters || isInHighlightedCluster;
-      
+
       // Use MGL color if available, otherwise fall back to ppview color scheme
       let particleColor;
       if (pos.mglColor) {
@@ -62,7 +65,7 @@ function Particles({
         // Fall back to ppview color scheme
         particleColor = new THREE.Color(particleColors[pos.typeIndex % particleColors.length]);
       }
-      
+
       return {
         position: {
           x: pos.x - boxSize[0] / 2,
@@ -81,7 +84,7 @@ function Particles({
   // Create colors array for the particles
   const colors = useMemo(() => {
     if (particleData.length === 0) return new Float32Array(0);
-    
+
     const colorArray = new Float32Array(particleData.length * 3);
     for (let i = 0; i < particleData.length; i++) {
       const data = particleData[i];
@@ -101,21 +104,21 @@ function Particles({
   useEffect(() => {
     if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
-      
+
       // Ensure we don't exceed the actual instance count
       const instanceCount = Math.min(mesh.count, particleData.length);
-      
+
       // Safety check: ensure instanceColor exists and has the right length
       if (!mesh.instanceColor || mesh.instanceColor.count !== instanceCount) {
         console.warn('Instance color buffer mismatch in color scheme update, skipping');
         return;
       }
-      
+
       // Update instance colors with new color scheme
       for (let i = 0; i < instanceCount; i++) {
         const data = particleData[i];
         if (!data || !data.typeColor) continue; // Skip if data is undefined or incomplete
-        
+
         if (!Array.isArray(selectedParticles) || !selectedParticles.includes(i)) {
           try {
             mesh.setColorAt(i, data.typeColor);
@@ -124,7 +127,7 @@ function Particles({
           }
         }
       }
-      
+
       mesh.instanceColor.needsUpdate = true;
     }
   }, [particleData, selectedParticles]);
@@ -137,10 +140,10 @@ function Particles({
 
       // Use mesh.count as the source of truth - it should match the number of instances we're working with
       const instanceCount = mesh.count;
-      
+
       // Create color array that exactly matches instance count
       const instanceColorArray = new Float32Array(instanceCount * 3);
-      
+
       // Set positions and populate color array
       for (let i = 0; i < instanceCount; i++) {
         if (i < particleData.length) {
@@ -154,7 +157,7 @@ function Particles({
               );
               dummy.updateMatrix();
               mesh.setMatrixAt(i, dummy.matrix);
-              
+
               // Set color from colors array if available
               const colorOffset = i * 3;
               if (colorOffset + 2 < colors.length) {
@@ -183,49 +186,49 @@ function Particles({
   // Helper function to get normalized mouse coordinates relative to canvas
   const getNormalizedMouseCoords = useCallback((event) => {
     if (!gl?.domElement) return null;
-    
+
     const canvas = gl.domElement;
     const rect = canvas.getBoundingClientRect();
-    
+
     // Check if canvas has valid dimensions
     if (rect.width <= 0 || rect.height <= 0) {
       console.warn('Canvas has invalid dimensions for mouse coordinate calculation');
       return null;
     }
-    
+
     // Calculate mouse position relative to canvas
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    
+
     // Check if click is within canvas bounds
     if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
       return null; // Click is outside canvas
     }
-    
+
     // Convert to normalized device coordinates (-1 to +1)
     const pointer = new THREE.Vector2();
     pointer.x = (x / rect.width) * 2 - 1;
     pointer.y = -(y / rect.height) * 2 + 1;
-    
+
     return pointer;
   }, [gl]);
 
   // Memoize event handlers to prevent unnecessary re-creation
   const handleClick = useCallback((event) => {
     if (!meshRef.current || !camera) return;
-    
+
     const pointer = getNormalizedMouseCoords(event);
     if (!pointer) return; // Invalid coordinates or click outside canvas
-    
+
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(pointer, camera);
-    
+
     try {
       const intersects = raycaster.intersectObject(meshRef.current);
 
       if (intersects.length > 0) {
         const instanceId = intersects[0].instanceId;
-        
+
         // Validate instanceId is within valid range
         if (instanceId >= 0 && instanceId < particleData.length) {
           if (event.ctrlKey || event.metaKey) {
@@ -256,23 +259,23 @@ function Particles({
 
   const handleDoubleClick = useCallback((event) => {
     if (!meshRef.current || !camera) return;
-    
+
     const pointer = getNormalizedMouseCoords(event);
     if (!pointer) return; // Invalid coordinates or click outside canvas
-    
+
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(pointer, camera);
-    
+
     try {
       const intersects = raycaster.intersectObject(meshRef.current);
 
       if (intersects.length > 0) {
         const instanceId = intersects[0].instanceId;
-        
+
         // Validate instanceId and get particle position
         if (instanceId >= 0 && instanceId < particleData.length) {
           const particlePosition = particleData[instanceId]?.position;
-          
+
           if (particlePosition && onParticleDoubleClick) {
             onParticleDoubleClick(new THREE.Vector3(
               particlePosition.x,
@@ -317,10 +320,10 @@ function Particles({
       for (let i = 0; i < instanceCount; i++) {
         const data = particleData[i];
         if (!data || !data.position) continue; // Skip if data is undefined or incomplete
-        
+
         let color;
         let scale = 1.0;
-        
+
         // Determine color based on selection and cluster highlighting
         if (Array.isArray(selectedParticles) && selectedParticles.includes(i)) {
           color = yellowColor; // Selected particles are yellow
@@ -333,11 +336,11 @@ function Particles({
         } else {
           color = data.typeColor; // Normal particle color
         }
-        
+
         // Safely set color and matrix
         try {
           mesh.setColorAt(i, color);
-          
+
           // Update scale for cluster highlighting
           dummy.position.set(
             data.position.x,
@@ -371,7 +374,7 @@ function Particles({
     }
     return map;
   }, [positions]);
-  
+
   // Early return if no positions (after all hooks)
   if (!positions || positions.length === 0) {
     return null;
@@ -401,7 +404,7 @@ function Particles({
                 // Only show patches for particles that are in highlighted clusters
                 filteredParticles = particles.filter((particle, index) => {
                   // Find the global index of this particle
-                  const globalIndex = positions.findIndex(p => 
+                  const globalIndex = positions.findIndex(p =>
                     p.x === particle.x && p.y === particle.y && p.z === particle.z
                   );
                   return highlightedClusters.has(globalIndex);
@@ -411,7 +414,7 @@ function Particles({
                 filteredParticles = [];
               }
             }
-            
+
             // Only render patches if there are visible particles
             if (filteredParticles.length > 0) {
               return (

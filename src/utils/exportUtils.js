@@ -11,28 +11,26 @@ export const captureScreenshot = (sceneRef, currentConfigIndex) => {
   }
 
   try {
-    // Force invalidate to ensure scene is rendered
+    // Force invalidate to ensure scene is rendered with post-processing
     if (sceneRef.invalidate) {
       sceneRef.invalidate();
     }
 
-    // Wait a brief moment then force a render and capture
+    // Wait for the render to complete through the EffectComposer pipeline
     setTimeout(() => {
       try {
-        // Get the renderer and ensure it's configured correctly
+        // Get the renderer
         const renderer = sceneRef.gl;
 
-        // Force a fresh render with current scene state
-        renderer.render(sceneRef.scene, sceneRef.camera);
-
-        // Get the canvas element
+        // Get the canvas element directly - it already has the composed output
         const canvas = renderer.domElement;
         if (!canvas) {
           alert('Canvas not found');
           return;
         }
 
-        // Capture the screenshot - the color space is already correctly set in the renderer
+        // Capture the screenshot - the canvas already contains the post-processed output
+        // Don't call renderer.render() as it bypasses the EffectComposer
         const dataURL = canvas.toDataURL('image/png');
 
         // Create a download link for the screenshot
@@ -47,7 +45,7 @@ export const captureScreenshot = (sceneRef, currentConfigIndex) => {
         console.error('Error capturing screenshot:', error);
         alert('Failed to capture screenshot - try again');
       }
-    }, 150);
+    }, 250); // Increased timeout to ensure composed render completes
 
   } catch (error) {
     console.error('Error taking screenshot:', error);
