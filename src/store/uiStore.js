@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getCurrentColorScheme } from '../colors';
+import { getCurrentLightingPreset, getLightingSettings, saveLightingSettings } from '../lighting';
 
 export const useUIStore = create((set) => ({
   // Legend visibility
@@ -32,6 +33,11 @@ export const useUIStore = create((set) => ({
   // Color scheme
   currentColorScheme: getCurrentColorScheme(),
   
+  // Lighting preset and settings
+  currentLightingPreset: getCurrentLightingPreset(),
+  lightingSettings: getLightingSettings(),
+  isLightingControlsModalOpen: false,
+  
   // Playback state
   isPlaying: false,
   playbackSpeed: 500,
@@ -42,11 +48,17 @@ export const useUIStore = create((set) => ({
   isPathtracerConfigModalOpen: false,
   pathtracerConfig: {
     samples: 500,
-    minSamples: 1,
+    minSamples: 5,
     bounces: 5,
-    tiles: 2,
+    tiles: 1,
     denoise: true,
+    filterGlossyThreshold: 0.5,
+    resolutionScale: 1.0,
+    enableMIS: true,
+    transparentBackground: false,
   },
+  pathtracerSamples: 0,
+  pathtracerReset: 0, // Increment to trigger reset
   
   // Actions
   setShowPatchLegend: (show) => set({ showPatchLegend: show }),
@@ -63,10 +75,18 @@ export const useUIStore = create((set) => ({
   setIsIframeMode: (isIframe) => set({ isIframeMode: isIframe }),
   setIsDragDropEnabled: (enabled) => set({ isDragDropEnabled: enabled }),
   setCurrentColorScheme: (scheme) => set({ currentColorScheme: scheme }),
+  setCurrentLightingPreset: (preset) => set({ currentLightingPreset: preset }),
+  setLightingSettings: (settings) => {
+    saveLightingSettings(settings);
+    set({ lightingSettings: settings });
+  },
+  setIsLightingControlsModalOpen: (open) => set({ isLightingControlsModalOpen: open }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
   setIsSpeedPopupVisible: (visible) => set({ isSpeedPopupVisible: visible }),
   setIsPathtracerEnabled: (enabled) => set({ isPathtracerEnabled: enabled }),
   setIsPathtracerConfigModalOpen: (open) => set({ isPathtracerConfigModalOpen: open }),
   setPathtracerConfig: (config) => set({ pathtracerConfig: config }),
+  setPathtracerSamples: (samples) => set({ pathtracerSamples: samples }),
+  resetPathtracer: () => set((state) => ({ pathtracerReset: state.pathtracerReset + 1, pathtracerSamples: 0 })),
 }));

@@ -7,7 +7,7 @@ import './ColorSchemeSelector.css';
 function ColorSchemeSelector() {
   // Get data from Zustand stores
   const getUniqueParticleTypes = useParticleStore(state => state.getUniqueParticleTypes);
-  const { currentColorScheme, setCurrentColorScheme } = useUIStore();
+  const { currentColorScheme, setCurrentColorScheme, isPathtracerEnabled, resetPathtracer } = useUIStore();
   const [isOpen, setIsOpen] = useState(false);
   
   const particleTypeCount = getUniqueParticleTypes().size || 10;
@@ -16,6 +16,10 @@ function ColorSchemeSelector() {
     setCurrentColorScheme(schemeName);
     saveColorScheme(schemeName);
     setIsOpen(false);
+    // Reset pathtracer to apply new colors
+    if (isPathtracerEnabled) {
+      resetPathtracer();
+    }
   };
 
   const getColorsForPreview = (schemeName) => {

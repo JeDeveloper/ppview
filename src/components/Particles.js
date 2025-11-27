@@ -22,17 +22,49 @@ function Particles({
   const { gl, camera } = useThree(); // For raycasting
 
   // Create geometry and material once
-  const geometry = useMemo(() => new THREE.SphereGeometry(0.5, 16, 16), []);
+  // Adaptive quality based on particle count to avoid memory overflow:
+  // - Small scenes (< 500 particles): 32x32 segments
+  // - Medium scenes (500-2000 particles): 24x24 segments  
+  // - Large scenes (> 2000 particles): 16x16 segments
+  const sphereSegments = useMemo(() => {
+    if (!isPathtracerEnabled) return 16;
+    const particleCount = positions?.length || 0;
+    if (particleCount < 500) return 32;
+    if (particleCount < 2000) return 24;
+    return 16; // Use same as standard for very large scenes
+  }, [isPathtracerEnabled, positions?.length]);
+  
+  const geometry = useMemo(() => {
+    const geom = new THREE.SphereGeometry(0.5, sphereSegments, sphereSegments);
+    if (isPathtracerEnabled && positions?.length > 0) {
+      console.log(`Path tracer: Using ${sphereSegments}x${sphereSegments} sphere geometry for ${positions.length} particles`);
+    }
+    return geom;
+  }, [sphereSegments, isPathtracerEnabled, positions?.length]);
+  
+  // Use MeshPhysicalMaterial for better path tracing results
   const material = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        metalness: 0.1, // Slight metallic look
-        roughness: 0.7, // Slightly smoother for better reflections
-        envMapIntensity: 1.0, // Full environment map reflection
-        emissive: 0x000000, // No emissive by default
-        emissiveIntensity: 0.05, // Subtle glow
-      }),
-    [],
+    () => {
+      if (isPathtracerEnabled) {
+        return new THREE.MeshPhysicalMaterial({
+          metalness: 0.2,
+          roughness: 0.6,
+          clearcoat: 0.3,
+          clearcoatRoughness: 0.2,
+          reflectivity: 0.5,
+          envMapIntensity: 1.5,
+        });
+      } else {
+        return new THREE.MeshStandardMaterial({
+          metalness: 0.1,
+          roughness: 0.7,
+          envMapIntensity: 1.0,
+          emissive: 0x000000,
+          emissiveIntensity: 0.05,
+        });
+      }
+    },
+    [isPathtracerEnabled],
   );
 
   // Get current particle colors based on the selected scheme
@@ -215,6 +247,8 @@ function Particles({
 
   // Memoize event handlers to prevent unnecessary re-creation
   const handleClick = useCallback((event) => {
+    // Disable selection during pathtracing to avoid interrupting rendering
+    if (isPathtracerEnabled) return;
     if (!meshRef.current || !camera) return;
 
     const pointer = getNormalizedMouseCoords(event);
@@ -255,9 +289,11 @@ function Particles({
     } catch (error) {
       console.warn('Error during particle selection:', error);
     }
-  }, [camera, setSelectedParticles, getNormalizedMouseCoords, particleData.length]);
+  }, [camera, setSelectedParticles, getNormalizedMouseCoords, particleData.length, isPathtracerEnabled]);
 
   const handleDoubleClick = useCallback((event) => {
+    // Disable double-click navigation during pathtracing to avoid interrupting rendering
+    if (isPathtracerEnabled) return;
     if (!meshRef.current || !camera) return;
 
     const pointer = getNormalizedMouseCoords(event);
@@ -288,7 +324,7 @@ function Particles({
     } catch (error) {
       console.warn('Error during particle double-click:', error);
     }
-  }, [camera, particleData, onParticleDoubleClick, getNormalizedMouseCoords]);
+  }, [camera, particleData, onParticleDoubleClick, getNormalizedMouseCoords, isPathtracerEnabled]);
 
   // Raycaster for detecting clicks and double-clicks
   useEffect(() => {
@@ -382,11 +418,22 @@ function Particles({
 
   return (
     <>
-      {/* Pathtracer doesn't support InstancedMesh, so render individual meshes */}
+      {/* Path tracer uses individual meshes instead of InstancedMesh */}
       {isPathtracerEnabled ? (
         <>
           {particleData.map((data, i) => {
             if (!data || !data.position) return null;
+            
+            // Hide noise particles (particles not in any cluster) when pathtracing
+            // If clustering is active (highlightedClusters has any clusters) and particle is not in a cluster, hide it
+            if (highlightedClusters.size > 0 && !data.isInHighlightedCluster) {
+              return null;
+            }
+            
+            // Hide particles when "show only selected" is active and particle shouldn't be shown
+            if (showOnlyHighlightedClusters && !data.shouldShow) {
+              return null;
+            }
             
             const color = (Array.isArray(selectedParticles) && selectedParticles.includes(i)) 
               ? new THREE.Color("yellow")
@@ -394,7 +441,7 @@ function Particles({
               
             const scale = (data.isInHighlightedCluster && highlightedClusters.size > 0)
               ? 1.3
-              : (showOnlyHighlightedClusters && !data.shouldShow) ? 0.3 : 1.0;
+              : 1.0;
             
             return (
               <mesh
@@ -403,15 +450,14 @@ function Particles({
                 scale={[scale, scale, scale]}
                 castShadow
                 receiveShadow
+                geometry={geometry}
               >
-                <sphereGeometry args={[0.5, 16, 16]} />
                 <meshStandardMaterial
                   color={color}
                   metalness={0.1}
-                  roughness={0.7}
-                  envMapIntensity={1.0}
-                  emissive={0x000000}
-                  emissiveIntensity={0.05}
+                  roughness={0.8}
+                  emissive={color}
+                  emissiveIntensity={0.3}
                 />
               </mesh>
             );
@@ -462,6 +508,7 @@ function Particles({
                   patchIDs={particleType.patches}
                   boxSize={boxSize}
                   colorScheme={colorScheme}
+                  isPathtracerEnabled={isPathtracerEnabled}
                 />
               );
             }

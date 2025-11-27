@@ -123,3 +123,11 @@ export const SparklesIcon = ({ size = 24, color = "currentColor" }) => (
     <path d="M5 18l1 2.5 2.5 1-2.5 1L5 25l-1-2.5L1.5 22l2.5-1L5 18z"></path>
   </svg>
 );
+
+export const LightbulbIcon = ({ size = 24, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18h6"></path>
+    <path d="M10 22h4"></path>
+    <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1.36.5 2.5 1.5 3.5.76.76 1.23 1.52 1.41 2.5"></path>
+  </svg>
+);

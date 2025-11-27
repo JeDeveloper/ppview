@@ -8,6 +8,7 @@ import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay";
 import ColorSchemeSelector from "./components/ColorSchemeSelector";
 import ClusteringPane from "./components/ClusteringPane";
 import PathTracerConfigModal from "./components/PathTracerConfigModal";
+import LightingControlsModal from "./components/LightingControlsModal";
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
 import { parseTopFile, getParticleType } from "./utils/topologyParser";
@@ -22,7 +23,7 @@ import "./styles.css";
 import {
   PlayIcon, PauseIcon, ResetIcon, SpeedIcon, TagIcon, CircleIcon,
   BoxIcon, LayersIcon, RulerIcon, ChartIcon, CameraIcon, DownloadIcon,
-  ChevronUpIcon, ChevronDownIcon, CloseIcon, AxisIcon, SparklesIcon
+  ChevronUpIcon, ChevronDownIcon, CloseIcon, AxisIcon, SparklesIcon, LightbulbIcon
 } from "./components/Icons";
 
 const ToggleBtn = ({ checked, onChange, icon, title }) => (
@@ -78,6 +79,9 @@ function App() {
     isPathtracerEnabled,
     isPathtracerConfigModalOpen,
     pathtracerConfig,
+    pathtracerSamples,
+    isLightingControlsModalOpen,
+    resetPathtracer,
     setShowPatchLegend,
     setShowParticleLegend,
     setShowSimulationBox,
@@ -95,6 +99,7 @@ function App() {
     setIsPathtracerEnabled,
     setIsPathtracerConfigModalOpen,
     setPathtracerConfig,
+    setIsLightingControlsModalOpen,
   } = useUIStore();
 
   const highlightedClusters = useClusteringStore(state => state.highlightedClusters);
@@ -387,6 +392,10 @@ function App() {
   const handleSliderChange = (e) => {
     const newIndex = parseInt(e.target.value, 10);
     setCurrentConfigIndex(newIndex);
+    // Reset pathtracer when trajectory changes
+    if (isPathtracerEnabled) {
+      resetPathtracer();
+    }
     // Trigger re-render when configuration changes
     setTimeout(invalidateScene, 0);
   };
@@ -747,6 +756,13 @@ function App() {
                   <ToggleBtn checked={showBackdropPlanes} onChange={setShowBackdropPlanes} icon={<LayersIcon size={18} />} title="Backdrop Planes" />
                   <ToggleBtn checked={showClusteringPane} onChange={setShowClusteringPane} icon={<ChartIcon size={18} />} title="Clustering Pane" />
                   <ToggleBtn checked={showCoordinateAxis} onChange={setShowCoordinateAxis} icon={<AxisIcon size={18} />} title="Coordinate Axis" />
+                  <button
+                    className="toggle-icon-btn"
+                    onClick={() => setIsLightingControlsModalOpen(true)}
+                    title="Lighting Controls"
+                  >
+                    <LightbulbIcon size={18} />
+                  </button>
                   <ToggleBtn checked={isPathtracerEnabled} onChange={handlePathtracerToggle} icon={<SparklesIcon size={18} />} title="GPU Pathtracer" />
                 </div>
 
@@ -777,7 +793,7 @@ function App() {
               </div>
 
               <div className="controls-footer">
-                <div className="color-scheme-wrapper">
+                <div className="selectors-wrapper">
                   <ColorSchemeSelector />
                 </div>
                 <div className="actions-group">
@@ -833,6 +849,13 @@ function App() {
         onClose={() => setIsPathtracerConfigModalOpen(false)}
         onStart={handleStartPathtracer}
         currentConfig={pathtracerConfig}
+        currentSamples={pathtracerSamples}
+      />
+
+      {/* Lighting Controls Modal */}
+      <LightingControlsModal
+        isOpen={isLightingControlsModalOpen}
+        onClose={() => setIsLightingControlsModalOpen(false)}
       />
     </div >
   );

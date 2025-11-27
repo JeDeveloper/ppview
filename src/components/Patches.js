@@ -4,13 +4,14 @@ import React, { useRef, useEffect, useMemo } from "react";
 import * as THREE from 'three';
 import { getColorForPatchID } from '../utils/colorUtils';
 
-function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = null }) {
+function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = null, isPathtracerEnabled = false }) {
   const meshRef = useRef();
   
   // Patch cone dimensions
   const coneRadius = 0.2;  // Base radius of the cone
   const coneHeight = 0.4;  // Height of the cone
-  const coneSegments = 8;  // Number of segments for cone base
+  // Use moderate quality geometry for path tracing (not too high to avoid memory issues)
+  const coneSegments = isPathtracerEnabled ? 16 : 8;  // Number of segments for cone base
 
   // Create cone geometry and material for patches
   // Cone points in +Y direction by default, we'll rotate it to point inward
@@ -22,12 +23,26 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
     return cone;
   }, [coneRadius, coneHeight, coneSegments]);
   
-  const material = useMemo(() => new THREE.MeshStandardMaterial({ 
-    color: 'white',
-    metalness: 0.3,
-    roughness: 0.7,
-    side: THREE.DoubleSide // Ensure cones are visible from all angles
-  }), []);
+  // Use MeshPhysicalMaterial for better path tracing results
+  const material = useMemo(() => {
+    if (isPathtracerEnabled) {
+      return new THREE.MeshPhysicalMaterial({
+        color: 'white',
+        metalness: 0.3,
+        roughness: 0.7,
+        clearcoat: 0.2,
+        clearcoatRoughness: 0.3,
+        side: THREE.DoubleSide,
+      });
+    } else {
+      return new THREE.MeshStandardMaterial({
+        color: 'white',
+        metalness: 0.3,
+        roughness: 0.7,
+        side: THREE.DoubleSide,
+      });
+    }
+  }, [isPathtracerEnabled]);
   
   // Check if we have valid patch data
   const hasValidPatchData = particles && patchPositions && patchIDs && 
@@ -151,7 +166,9 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
       }
 
       // Update material to use instanceColor
-      if (!mesh.material.userData.instanceColorInjected) {
+      // IMPORTANT: Skip custom shader injection when path tracing is enabled
+      // Path tracers don't support custom shaders
+      if (!isPathtracerEnabled && !mesh.material.userData.instanceColorInjected) {
         mesh.material.userData.instanceColorInjected = true;
 
         mesh.material.onBeforeCompile = (shader) => {
@@ -182,6 +199,13 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
           );
         };
         mesh.material.needsUpdate = true;
+      }
+      
+      // For path tracing, we need to update the material color directly
+      // since custom shaders don't work. We'll use a uniform color per instance.
+      if (isPathtracerEnabled && mesh.instanceColor) {
+        // Path tracer will use the instanceColor attribute if available
+        // Note: This may not work perfectly with all path tracers
       }
     }
   }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);

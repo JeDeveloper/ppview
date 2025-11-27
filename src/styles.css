@@ -761,12 +761,22 @@ canvas {
     flex-wrap: wrap;
 }
 
-.color-scheme-wrapper {
+.selectors-wrapper {
     flex: 1;
-    min-width: 200px;
+    display: flex;
+    gap: 12px;
+    min-width: 300px;
+    flex-wrap: wrap;
 }
 
-.color-scheme-wrapper select {
+.color-scheme-wrapper,
+.lighting-wrapper {
+    flex: 1;
+    min-width: 150px;
+}
+
+.color-scheme-wrapper select,
+.lighting-wrapper select {
     width: 100%;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -779,12 +789,14 @@ canvas {
     transition: all 0.2s;
 }
 
-.color-scheme-wrapper select:hover {
+.color-scheme-wrapper select:hover,
+.lighting-wrapper select:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
 }
 
-.color-scheme-wrapper select option {
+.color-scheme-wrapper select option,
+.lighting-wrapper select option {
     background: #2a2a2a;
     color: white;
 }

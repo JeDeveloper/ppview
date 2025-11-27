@@ -1,28 +1,39 @@
 import React, { useState } from 'react';
 import { CloseIcon } from './Icons';
+import DraggablePanel from './DraggablePanel';
+import { useUIStore } from '../store/uiStore';
 import '../styles/PathTracerConfigModal.css';
 
-function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig }) {
+function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig, currentSamples }) {
   const [config, setConfig] = useState(currentConfig || {
     samples: 500,
-    minSamples: 1,
+    minSamples: 5,
     bounces: 5,
-    tiles: 2,
+    tiles: 1,
     denoise: true,
+    filterGlossyThreshold: 0.5,
+    resolutionScale: 1.0,
+    enableMIS: true,
+    transparentBackground: false,
   });
+
+  const isPathtracerEnabled = useUIStore(state => state.isPathtracerEnabled);
+  const resetPathtracer = useUIStore(state => state.resetPathtracer);
 
   if (!isOpen) return null;
 
-  const handleStart = () => {
+  const handleApply = () => {
     onStart(config);
-    onClose();
+    // Reset pathtracer to apply new settings
+    resetPathtracer();
+    // Don't close the modal - keep it open for monitoring
   };
 
   return (
-    <div className="pathtracer-modal-overlay" onClick={onClose}>
-      <div className="pathtracer-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="pathtracer-modal-header">
-          <h2>GPU Pathtracer Configuration</h2>
+    <DraggablePanel initialX={window.innerWidth - 420} initialY={20} className="pathtracer-panel">
+      <div className="pathtracer-modal">
+        <div className="pathtracer-modal-header drag-handle">
+          <h2>GPU Pathtracer</h2>
           <button className="close-btn" onClick={onClose}>
             <CloseIcon size={18} />
           </button>
@@ -67,24 +78,24 @@ function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig }) {
             <div className="config-item">
               <label htmlFor="tiles">
                 Tile Size
-                <span className="config-hint">Rendering tiles (higher = more responsive UI, slower overall)</span>
+                <span className="config-hint">Use 1x1 to avoid visible tile divisions</span>
               </label>
               <select
                 id="tiles"
                 value={config.tiles}
                 onChange={(e) => setConfig({ ...config, tiles: parseInt(e.target.value) })}
               >
-                <option value="1">1x1 (Fastest)</option>
-                <option value="2">2x2 (Balanced)</option>
-                <option value="3">3x3 (Responsive)</option>
-                <option value="4">4x4 (Most Responsive)</option>
+                <option value="1">1x1 (No Tiles - Recommended)</option>
+                <option value="2">2x2</option>
+                <option value="3">3x3</option>
+                <option value="4">4x4</option>
               </select>
             </div>
 
             <div className="config-item">
               <label htmlFor="minSamples">
                 Min Samples to Display
-                <span className="config-hint">Samples before showing result</span>
+                <span className="config-hint">Tiles visible until this threshold (3-10 recommended)</span>
               </label>
               <input
                 id="minSamples"
@@ -111,6 +122,68 @@ function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig }) {
                 </span>
               </label>
             </div>
+
+            <div className="config-item">
+              <label htmlFor="filterGlossyThreshold">
+                Firefly Filter Threshold
+                <span className="config-hint">Higher values reduce white dots (0.0-5.0, 0=off)</span>
+              </label>
+              <input
+                id="filterGlossyThreshold"
+                type="number"
+                min="0"
+                max="5"
+                step="0.1"
+                value={config.filterGlossyThreshold}
+                onChange={(e) => setConfig({ ...config, filterGlossyThreshold: parseFloat(e.target.value) })}
+              />
+              <span className="config-value">{config.filterGlossyThreshold.toFixed(1)}</span>
+            </div>
+
+            <div className="config-item">
+              <label htmlFor="resolutionScale">
+                Resolution Scale
+                <span className="config-hint">Render scale (lower = faster, less detail)</span>
+              </label>
+              <input
+                id="resolutionScale"
+                type="number"
+                min="0.25"
+                max="1.0"
+                step="0.05"
+                value={config.resolutionScale}
+                onChange={(e) => setConfig({ ...config, resolutionScale: parseFloat(e.target.value) })}
+              />
+              <span className="config-value">{(config.resolutionScale * 100).toFixed(0)}%</span>
+            </div>
+
+            <div className="config-item config-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.enableMIS}
+                  onChange={(e) => setConfig({ ...config, enableMIS: e.target.checked })}
+                />
+                <span className="checkbox-label">
+                  Multiple Importance Sampling
+                  <span className="config-hint">Better light sampling, reduces noise</span>
+                </span>
+              </label>
+            </div>
+
+            <div className="config-item config-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.transparentBackground}
+                  onChange={(e) => setConfig({ ...config, transparentBackground: e.target.checked })}
+                />
+                <span className="checkbox-label">
+                  Transparent Background
+                  <span className="config-hint">Export with alpha channel</span>
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="config-presets">
@@ -118,19 +191,49 @@ function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig }) {
             <div className="preset-buttons">
               <button
                 className="preset-btn"
-                onClick={() => setConfig({ samples: 100, minSamples: 1, bounces: 3, tiles: 3, denoise: true })}
+                onClick={() => setConfig({ 
+                  samples: 100, 
+                  minSamples: 3, 
+                  bounces: 3, 
+                  tiles: 1, 
+                  denoise: true,
+                  filterGlossyThreshold: 1.0,
+                  resolutionScale: 0.75,
+                  enableMIS: true,
+                  transparentBackground: false
+                })}
               >
                 Fast Preview
               </button>
               <button
                 className="preset-btn"
-                onClick={() => setConfig({ samples: 500, minSamples: 1, bounces: 5, tiles: 2, denoise: true })}
+                onClick={() => setConfig({ 
+                  samples: 500, 
+                  minSamples: 5, 
+                  bounces: 5, 
+                  tiles: 1, 
+                  denoise: true,
+                  filterGlossyThreshold: 0.5,
+                  resolutionScale: 1.0,
+                  enableMIS: true,
+                  transparentBackground: false
+                })}
               >
                 Balanced
               </button>
               <button
                 className="preset-btn"
-                onClick={() => setConfig({ samples: 2000, minSamples: 10, bounces: 10, tiles: 2, denoise: true })}
+                onClick={() => setConfig({ 
+                  samples: 2000, 
+                  minSamples: 10, 
+                  bounces: 10, 
+                  tiles: 1, 
+                  denoise: true,
+                  filterGlossyThreshold: 0.2,
+                  resolutionScale: 1.0,
+                  enableMIS: true,
+                  transparentBackground: false
+                })}
               >
                 High Quality
               </button>
@@ -138,20 +241,20 @@ function PathTracerConfigModal({ isOpen, onClose, onStart, currentConfig }) {
           </div>
 
           <div className="config-info">
-            <strong>Note:</strong> Pathtracing is computationally intensive and will appear noisy at first. The image progressively refines as more samples are rendered. Higher sample counts and more bounces reduce noise but take longer. The denoising option can help smooth the result. For best quality, let the pathtracer reach the maximum sample count.
+            <strong>Tip:</strong> If you see white dots (fireflies), increase the Firefly Filter Threshold to 1.0-2.0. Enable MIS for better light sampling. Lower Resolution Scale for faster preview, then increase for final render.
           </div>
         </div>
 
         <div className="pathtracer-modal-footer">
           <button className="cancel-btn" onClick={onClose}>
-            Cancel
+            Close
           </button>
-          <button className="start-btn" onClick={handleStart}>
-            Start Pathtracing
+          <button className="start-btn" onClick={handleApply}>
+            {isPathtracerEnabled ? 'Apply Changes' : 'Start Pathtracing'}
           </button>
         </div>
       </div>
-    </div>
+    </DraggablePanel>
   );
 }
 
