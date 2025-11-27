@@ -210,12 +210,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
     }
   }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
 
-  // Return null if no valid patch data
-  if (!hasValidPatchData) {
-    return null;
-  }
-
-  // Compute patch data for both rendering modes
+  // Compute patch data for both rendering modes (must be before early return)
   const patchData = useMemo(() => {
     if (!hasValidPatchData) return [];
     
@@ -293,6 +288,11 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
     
     return patches;
   }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
+
+  // Return null if no valid patch data
+  if (!hasValidPatchData) {
+    return null;
+  }
 
   return (
     <>
