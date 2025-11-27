@@ -4,7 +4,7 @@ import { getParticleColors } from "../colors";
 import { getColorForPatchID } from "./colorUtils";
 
 // Function to take a screenshot of the current scene
-export const captureScreenshot = (sceneRef, currentConfigIndex) => {
+export const captureScreenshot = (sceneRef, currentConfigIndex, resolutionScale = 1.0) => {
   if (!sceneRef || !sceneRef.gl || !sceneRef.scene || !sceneRef.camera) {
     alert('Scene not ready for screenshot');
     return;
@@ -29,9 +29,27 @@ export const captureScreenshot = (sceneRef, currentConfigIndex) => {
           return;
         }
 
-        // Capture the screenshot - the canvas already contains the post-processed output
-        // Don't call renderer.render() as it bypasses the EffectComposer
-        const dataURL = canvas.toDataURL('image/png');
+        // If resolution scale is not 1.0, we need to create a scaled version
+        let dataURL;
+        if (resolutionScale !== 1.0 && resolutionScale < 1.0) {
+          // Create a temporary canvas at full resolution
+          const tempCanvas = document.createElement('canvas');
+          const originalWidth = canvas.width / resolutionScale;
+          const originalHeight = canvas.height / resolutionScale;
+          tempCanvas.width = originalWidth;
+          tempCanvas.height = originalHeight;
+          
+          const ctx = tempCanvas.getContext('2d');
+          // Scale up the rendered image to full resolution
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(canvas, 0, 0, originalWidth, originalHeight);
+          dataURL = tempCanvas.toDataURL('image/png');
+        } else {
+          // Capture the screenshot - the canvas already contains the post-processed output
+          // Don't call renderer.render() as it bypasses the EffectComposer
+          dataURL = canvas.toDataURL('image/png');
+        }
 
         // Create a download link for the screenshot
         const link = document.createElement('a');

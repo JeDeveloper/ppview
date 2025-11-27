@@ -120,6 +120,7 @@ const ParticleScene = () => {
           minSamples={pathtracerConfig.minSamples}
           bounces={pathtracerConfig.bounces} 
           tiles={pathtracerConfig.tiles}
+          resolutionScale={pathtracerConfig.resolutionScale}
         >
           <SceneContent
             positions={positions}

@@ -215,8 +215,111 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
     return null;
   }
 
+  // Compute patch data for both rendering modes
+  const patchData = useMemo(() => {
+    if (!hasValidPatchData) return [];
+    
+    const patches = [];
+    
+    for (let i = 0; i < particles.length; i++) {
+      const particle = particles[i];
+      const particlePosition = new THREE.Vector3(
+        particle.x - boxSize[0] / 2,
+        particle.y - boxSize[1] / 2,
+        particle.z - boxSize[2] / 2
+      );
+
+      // Use the rotation matrix if available
+      let rotationMatrix = null;
+      if (particle.rotationMatrix) {
+        rotationMatrix = new THREE.Matrix3().fromArray(particle.rotationMatrix.elements);
+      }
+
+      for (let j = 0; j < patchPositions.length; j++) {
+        const patchOffset = patchPositions[j];
+        const patchID = patchIDs[j];
+        
+        // Skip if patch data is invalid
+        if (!patchOffset || patchID === undefined || patchID === null) {
+          continue;
+        }
+
+        // Compute the patch position and orientation
+        const patchVectorLength = Math.sqrt(
+          patchOffset.x * patchOffset.x + 
+          patchOffset.y * patchOffset.y + 
+          patchOffset.z * patchOffset.z
+        );
+        
+        const scaleFactor = patchVectorLength < 1.5 ? 0.5 : 0.5 / patchVectorLength;
+        
+        const localPatchPosition = new THREE.Vector3(
+          patchOffset.x,
+          patchOffset.y,
+          patchOffset.z
+        ).multiplyScalar(scaleFactor);
+
+        const patchDirection = new THREE.Vector3(
+          patchOffset.x,
+          patchOffset.y,
+          patchOffset.z
+        ).normalize();
+
+        let rotatedPatchPosition = localPatchPosition.clone();
+        let rotatedPatchDirection = patchDirection.clone();
+        
+        if (rotationMatrix) {
+          rotatedPatchPosition.applyMatrix3(rotationMatrix);
+          rotatedPatchDirection.applyMatrix3(rotationMatrix);
+        }
+
+        const patchPosition = rotatedPatchPosition.add(particlePosition);
+        
+        // Orient the cone to point inward toward the particle
+        const upVector = new THREE.Vector3(0, 1, 0);
+        const inwardDirection = rotatedPatchDirection.clone().negate();
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromUnitVectors(upVector, inwardDirection);
+        
+        const color = getColorForPatchID(patchID, colorScheme);
+        
+        patches.push({
+          position: patchPosition,
+          quaternion: quaternion,
+          color: color
+        });
+      }
+    }
+    
+    return patches;
+  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
+
   return (
-    <instancedMesh ref={meshRef} args={[geometry, material, totalPatches]} castShadow receiveShadow />
+    <>
+      {isPathtracerEnabled ? (
+        // Path tracer mode: render individual meshes
+        patchData.map((patch, index) => (
+          <mesh
+            key={index}
+            position={[patch.position.x, patch.position.y, patch.position.z]}
+            quaternion={patch.quaternion}
+            geometry={geometry}
+            castShadow
+            receiveShadow
+          >
+            <meshStandardMaterial
+              color={patch.color}
+              metalness={0.3}
+              roughness={0.7}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        ))
+      ) : (
+        // Standard mode: use instanced mesh
+        <instancedMesh ref={meshRef} args={[geometry, material, totalPatches]} castShadow receiveShadow />
+      )}
+    </>
   );
 }
 

@@ -126,8 +126,10 @@ function App() {
 
   // Function to take a screenshot
   const takeScreenshot = useCallback(() => {
-    captureScreenshot(sceneRef, currentConfigIndex);
-  }, [sceneRef, currentConfigIndex]);
+    // Pass resolution scale from pathtracer config if pathtracer is enabled
+    const resolutionScale = isPathtracerEnabled ? pathtracerConfig.resolutionScale : 1.0;
+    captureScreenshot(sceneRef, currentConfigIndex, resolutionScale);
+  }, [sceneRef, currentConfigIndex, isPathtracerEnabled, pathtracerConfig.resolutionScale]);
 
 
   const handleFilesReceived = async (files) => {
