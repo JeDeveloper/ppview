@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stats, Environment } from "@react-three/drei";
 import Particles from "./Particles";
+import { Pathtracer } from "@react-three/gpu-pathtracer";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useParticleStore } from "../store/particleStore";
@@ -90,6 +91,8 @@ const ParticleScene = () => {
     showCoordinateAxis,
     showPatchLegend,
     currentColorScheme,
+    isPathtracerEnabled,
+    pathtracerConfig,
   } = useUIStore();
 
   const {
@@ -100,7 +103,7 @@ const ParticleScene = () => {
     <Canvas
       shadows // Enable shadows for the scene
       camera={{ position: [100, 0, 0], fov: 45 }}
-      frameloop="demand" // Only render when needed
+      frameloop={isPathtracerEnabled ? "always" : "demand"} // Always render when pathtracing
       dpr={[1, 2]} // Adaptive pixel ratio for performance
       gl={{
         preserveDrawingBuffer: true, // Enable screenshot capability
@@ -109,20 +112,48 @@ const ParticleScene = () => {
         toneMappingExposure: 0.7 // Balanced for shadows visibility
       }}
     >
-      <SceneContent
-        positions={positions}
-        boxSize={currentBoxSize}
-        selectedParticles={selectedParticles}
-        setSelectedParticles={setSelectedParticles}
-        onSceneReady={setSceneRef}
-        showSimulationBox={showSimulationBox}
-        showBackdropPlanes={showBackdropPlanes}
-        showCoordinateAxis={showCoordinateAxis}
-        showPatches={showPatchLegend}
-        colorScheme={currentColorScheme}
-        highlightedClusters={highlightedClusters}
-        showOnlyHighlightedClusters={showOnlyHighlightedClusters}
-      />
+      {isPathtracerEnabled ? (
+        <Pathtracer 
+          key={`${showSimulationBox}-${showBackdropPlanes}-${showCoordinateAxis}`}
+          enabled={true}
+          samples={pathtracerConfig.samples} 
+          minSamples={pathtracerConfig.minSamples}
+          bounces={pathtracerConfig.bounces} 
+          tiles={pathtracerConfig.tiles}
+        >
+          <SceneContent
+            positions={positions}
+            boxSize={currentBoxSize}
+            selectedParticles={selectedParticles}
+            setSelectedParticles={setSelectedParticles}
+            onSceneReady={setSceneRef}
+            showSimulationBox={showSimulationBox}
+            showBackdropPlanes={showBackdropPlanes}
+            showCoordinateAxis={showCoordinateAxis}
+            showPatches={showPatchLegend}
+            colorScheme={currentColorScheme}
+            highlightedClusters={highlightedClusters}
+            showOnlyHighlightedClusters={showOnlyHighlightedClusters}
+            isPathtracerEnabled={isPathtracerEnabled}
+          />
+        </Pathtracer>
+      ) : (
+        <SceneContent
+          positions={positions}
+          boxSize={currentBoxSize}
+          selectedParticles={selectedParticles}
+          setSelectedParticles={setSelectedParticles}
+          onSceneReady={setSceneRef}
+          showSimulationBox={showSimulationBox}
+          showBackdropPlanes={showBackdropPlanes}
+          showCoordinateAxis={showCoordinateAxis}
+          showPatches={showPatchLegend}
+          colorScheme={currentColorScheme}
+          highlightedClusters={highlightedClusters}
+          showOnlyHighlightedClusters={showOnlyHighlightedClusters}
+          isPathtracerEnabled={isPathtracerEnabled}
+        />
+      )}
     </Canvas>
   );
 };
@@ -140,6 +171,7 @@ function SceneContent({
   colorScheme,
   highlightedClusters,
   showOnlyHighlightedClusters,
+  isPathtracerEnabled,
 }) {
   const controlsRef = useRef();
   const { scene, camera, invalidate, gl } = useThree();
@@ -206,6 +238,7 @@ function SceneContent({
         onChange={() => invalidate()} // Trigger re-render on camera changes
         enableDamping={true}
         dampingFactor={0.05}
+        makeDefault={isPathtracerEnabled} // Required for pathtracer
       />
       {/* ========== PHYSICALLY BASED LIGHTING SETUP ========== */}
 
@@ -336,16 +369,18 @@ function SceneContent({
         onParticleDoubleClick={handleParticleDoubleClick}
       />
 
-      {/* Add subtle SSAO for gentle ambient occlusion */}
-      <EffectComposer enableNormalPass>
-        <SSAO
-          samples={31}
-          radius={0.3}
-          intensity={12}
-          luminanceInfluence={0.6}
-          color="#000000"
-        />
-      </EffectComposer>
+      {/* Add subtle SSAO for gentle ambient occlusion (disabled when pathtracing) */}
+      {!isPathtracerEnabled && (
+        <EffectComposer enableNormalPass>
+          <SSAO
+            samples={31}
+            radius={0.3}
+            intensity={12}
+            luminanceInfluence={0.6}
+            color="#000000"
+          />
+        </EffectComposer>
+      )}
 
       {/* Add Stats component for performance monitoring */}
       <Stats />

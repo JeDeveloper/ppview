@@ -37,6 +37,17 @@ export const useUIStore = create((set) => ({
   playbackSpeed: 500,
   isSpeedPopupVisible: false,
   
+  // Pathtracer state
+  isPathtracerEnabled: false,
+  isPathtracerConfigModalOpen: false,
+  pathtracerConfig: {
+    samples: 500,
+    minSamples: 1,
+    bounces: 5,
+    tiles: 2,
+    denoise: true,
+  },
+  
   // Actions
   setShowPatchLegend: (show) => set({ showPatchLegend: show }),
   setShowParticleLegend: (show) => set({ showParticleLegend: show }),
@@ -55,4 +66,7 @@ export const useUIStore = create((set) => ({
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
   setIsSpeedPopupVisible: (visible) => set({ isSpeedPopupVisible: visible }),
+  setIsPathtracerEnabled: (enabled) => set({ isPathtracerEnabled: enabled }),
+  setIsPathtracerConfigModalOpen: (open) => set({ isPathtracerConfigModalOpen: open }),
+  setPathtracerConfig: (config) => set({ pathtracerConfig: config }),
 }));

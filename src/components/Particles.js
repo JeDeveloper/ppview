@@ -13,7 +13,7 @@ function Particles({
   // Get data from Zustand stores
   const positions = useParticleStore(state => state.positions);
   const boxSize = useParticleStore(state => state.currentBoxSize);
-  const { selectedParticles, setSelectedParticles } = useUIStore();
+  const { selectedParticles, setSelectedParticles, isPathtracerEnabled } = useUIStore();
   const colorScheme = useUIStore(state => state.currentColorScheme);
   const showPatches = useUIStore(state => state.showPatchLegend);
   const { highlightedClusters, showOnlyHighlightedClusters } = useClusteringStore();
@@ -382,9 +382,46 @@ function Particles({
 
   return (
     <>
-      <instancedMesh ref={meshRef} args={[geometry, material, count]} castShadow receiveShadow>
-        {/* This instancedMesh renders the particles */}
-      </instancedMesh>
+      {/* Pathtracer doesn't support InstancedMesh, so render individual meshes */}
+      {isPathtracerEnabled ? (
+        <>
+          {particleData.map((data, i) => {
+            if (!data || !data.position) return null;
+            
+            const color = (Array.isArray(selectedParticles) && selectedParticles.includes(i)) 
+              ? new THREE.Color("yellow")
+              : data.typeColor;
+              
+            const scale = (data.isInHighlightedCluster && highlightedClusters.size > 0)
+              ? 1.3
+              : (showOnlyHighlightedClusters && !data.shouldShow) ? 0.3 : 1.0;
+            
+            return (
+              <mesh
+                key={i}
+                position={[data.position.x, data.position.y, data.position.z]}
+                scale={[scale, scale, scale]}
+                castShadow
+                receiveShadow
+              >
+                <sphereGeometry args={[0.5, 16, 16]} />
+                <meshStandardMaterial
+                  color={color}
+                  metalness={0.1}
+                  roughness={0.7}
+                  envMapIntensity={1.0}
+                  emissive={0x000000}
+                  emissiveIntensity={0.05}
+                />
+              </mesh>
+            );
+          })}
+        </>
+      ) : (
+        <instancedMesh ref={meshRef} args={[geometry, material, count]} castShadow receiveShadow>
+          {/* This instancedMesh renders the particles */}
+        </instancedMesh>
+      )}
 
       {showPatches && Array.from(particlesByType.values()).map(
         ({ particleType, particles }, idx) => {

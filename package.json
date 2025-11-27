@@ -6,6 +6,7 @@
   "dependencies": {
     "@react-three/drei": "^9.113.0",
     "@react-three/fiber": "^8.17.7",
+    "@react-three/gpu-pathtracer": "^0.3.2",
     "@react-three/postprocessing": "^2.16.2",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -16,6 +17,7 @@
     "react-dropzone": "^14.2.3",
     "react-scripts": "5.0.1",
     "three": "^0.168.0",
+    "three-gpu-pathtracer": "^0.0.23",
     "web-vitals": "^2.1.4",
     "zustand": "^5.0.8"
   },

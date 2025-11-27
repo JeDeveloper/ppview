@@ -7,6 +7,7 @@ import ParticleLegend from "./components/ParticleLegend";
 import SelectedParticlesDisplay from "./components/SelectedParticlesDisplay";
 import ColorSchemeSelector from "./components/ColorSchemeSelector";
 import ClusteringPane from "./components/ClusteringPane";
+import PathTracerConfigModal from "./components/PathTracerConfigModal";
 import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
 import { parseTopFile, getParticleType } from "./utils/topologyParser";
@@ -21,7 +22,7 @@ import "./styles.css";
 import {
   PlayIcon, PauseIcon, ResetIcon, SpeedIcon, TagIcon, CircleIcon,
   BoxIcon, LayersIcon, RulerIcon, ChartIcon, CameraIcon, DownloadIcon,
-  ChevronUpIcon, ChevronDownIcon, CloseIcon, AxisIcon
+  ChevronUpIcon, ChevronDownIcon, CloseIcon, AxisIcon, SparklesIcon
 } from "./components/Icons";
 
 const ToggleBtn = ({ checked, onChange, icon, title }) => (
@@ -74,6 +75,9 @@ function App() {
     isPlaying,
     playbackSpeed,
     isSpeedPopupVisible,
+    isPathtracerEnabled,
+    isPathtracerConfigModalOpen,
+    pathtracerConfig,
     setShowPatchLegend,
     setShowParticleLegend,
     setShowSimulationBox,
@@ -88,6 +92,9 @@ function App() {
     setIsPlaying,
     setPlaybackSpeed,
     setIsSpeedPopupVisible,
+    setIsPathtracerEnabled,
+    setIsPathtracerConfigModalOpen,
+    setPathtracerConfig,
   } = useUIStore();
 
   const highlightedClusters = useClusteringStore(state => state.highlightedClusters);
@@ -481,6 +488,23 @@ function App() {
     [currentBoxSize, invalidateScene, setPositions],
   );
 
+  // Handle pathtracer toggle - open config modal when enabling
+  const handlePathtracerToggle = useCallback(() => {
+    if (!isPathtracerEnabled) {
+      // Opening pathtracer - show config modal
+      setIsPathtracerConfigModalOpen(true);
+    } else {
+      // Closing pathtracer - disable immediately
+      setIsPathtracerEnabled(false);
+    }
+  }, [isPathtracerEnabled, setIsPathtracerEnabled, setIsPathtracerConfigModalOpen]);
+
+  // Handle starting pathtracer with config
+  const handleStartPathtracer = useCallback((config) => {
+    setPathtracerConfig(config);
+    setIsPathtracerEnabled(true);
+  }, [setPathtracerConfig, setIsPathtracerEnabled]);
+
   // Function to export the scene as GLTF
   const exportGLTF = useCallback(() => {
     exportSceneAsGLTF({
@@ -723,6 +747,7 @@ function App() {
                   <ToggleBtn checked={showBackdropPlanes} onChange={setShowBackdropPlanes} icon={<LayersIcon size={18} />} title="Backdrop Planes" />
                   <ToggleBtn checked={showClusteringPane} onChange={setShowClusteringPane} icon={<ChartIcon size={18} />} title="Clustering Pane" />
                   <ToggleBtn checked={showCoordinateAxis} onChange={setShowCoordinateAxis} icon={<AxisIcon size={18} />} title="Coordinate Axis" />
+                  <ToggleBtn checked={isPathtracerEnabled} onChange={handlePathtracerToggle} icon={<SparklesIcon size={18} />} title="GPU Pathtracer" />
                 </div>
 
                 <button
@@ -801,6 +826,14 @@ function App() {
           </div>
         )
       }
+
+      {/* PathTracer Configuration Modal */}
+      <PathTracerConfigModal
+        isOpen={isPathtracerConfigModalOpen}
+        onClose={() => setIsPathtracerConfigModalOpen(false)}
+        onStart={handleStartPathtracer}
+        currentConfig={pathtracerConfig}
+      />
     </div >
   );
 }
