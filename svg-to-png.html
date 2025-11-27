@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SVG to PNG Converter - PPView Favicon</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2a2a2a; }
+        .preview { 
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        canvas { 
+            border: 1px solid #ddd;
+            margin: 10px;
+            background: white;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover { background: #2980b9; }
+        .instructions {
+            background: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PPView Favicon Generator</h1>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Click the generate buttons below</li>
+                <li>Right-click each canvas and select "Save Image As..."</li>
+                <li>Save as the specified filename in the <code>public/</code> folder</li>
+            </ol>
+        </div>
+
+        <div class="preview">
+            <h3>Logo 192x192</h3>
+            <button onclick="generatePNG(192, 'canvas192')">Generate logo192.png</button>
+            <br>
+            <canvas id="canvas192" width="192" height="192"></canvas>
+        </div>
+
+        <div class="preview">
+            <h3>Logo 512x512</h3>
+            <button onclick="generatePNG(512, 'canvas512')">Generate logo512.png</button>
+            <br>
+            <canvas id="canvas512" width="512" height="512"></canvas>
+        </div>
+
+        <div class="preview">
+            <h3>Favicon 32x32</h3>
+            <button onclick="generatePNG(32, 'canvas32')">Generate favicon-32x32.png</button>
+            <br>
+            <canvas id="canvas32" width="32" height="32"></canvas>
+        </div>
+
+        <div class="preview">
+            <h3>Favicon 16x16</h3>
+            <button onclick="generatePNG(16, 'canvas16')">Generate favicon-16x16.png</button>
+            <br>
+            <canvas id="canvas16" width="16" height="16"></canvas>
+        </div>
+
+        <button onclick="generateAll()" style="background: #2ecc71; font-size: 16px; padding: 15px 30px;">
+            🎨 Generate All Sizes
+        </button>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
+            <h3 style="margin-top: 0;">⚠️ For favicon.ico:</h3>
+            <p>After saving the PNG files above, create the .ico file:</p>
+            <ol>
+                <li><strong>Option 1 (Online):</strong> Go to <a href="https://www.icoconverter.com/" target="_blank">icoconverter.com</a> or <a href="https://convertio.co/png-ico/" target="_blank">convertio.co</a></li>
+                <li>Upload the 32x32 PNG you saved above</li>
+                <li>Convert and download as <code>favicon.ico</code></li>
+                <li>Save to <code>public/favicon.ico</code></li>
+            </ol>
+            <p><strong>Option 2 (Use online multi-size generator):</strong></p>
+            <ol>
+                <li>Go to <a href="https://realfavicongenerator.net/" target="_blank">realfavicongenerator.net</a></li>
+                <li>Upload <code>public/favicon.svg</code></li>
+                <li>Download the complete package (includes .ico)</li>
+                <li>Replace all files in <code>public/</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1"/>
+      <feOffset dx="0.5" dy="0.5" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <rect width="64" height="64" fill="#2a2a2a"/>
+  
+  <circle cx="32" cy="32" r="18" fill="#b0b0b0" filter="url(#shadow)"/>
+  <circle cx="32" cy="32" r="18" fill="url(#particleGradient)"/>
+  
+  <defs>
+    <radialGradient id="particleGradient" cx="40%" cy="40%">
+      <stop offset="0%" style="stop-color:#e0e0e0;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#b0b0b0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#808080;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <circle cx="22" cy="22" r="5.5" fill="#ffd700" filter="url(#shadow)"/>
+  <circle cx="22" cy="22" r="5.5" fill="url(#yellowGradient)"/>
+  
+  <circle cx="42" cy="42" r="5.5" fill="#e74c3c" filter="url(#shadow)"/>
+  <circle cx="42" cy="42" r="5.5" fill="url(#redGradient)"/>
+  
+  <circle cx="40" cy="24" r="5" fill="#3498db" filter="url(#shadow)"/>
+  <circle cx="40" cy="24" r="5" fill="url(#blueGradient)"/>
+  
+  <circle cx="18" cy="36" r="5" fill="#2ecc71" filter="url(#shadow)"/>
+  <circle cx="18" cy="36" r="5" fill="url(#greenGradient)"/>
+  
+  <defs>
+    <radialGradient id="yellowGradient" cx="40%" cy="40%">
+      <stop offset="0%" style="stop-color:#ffeb3b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffd700;stop-opacity:1" />
+    </radialGradient>
+    <radialGradient id="redGradient" cx="40%" cy="40%">
+      <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e74c3c;stop-opacity:1" />
+    </radialGradient>
+    <radialGradient id="blueGradient" cx="40%" cy="40%">
+      <stop offset="0%" style="stop-color:#5dade2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3498db;stop-opacity:1" />
+    </radialGradient>
+    <radialGradient id="greenGradient" cx="40%" cy="40%">
+      <stop offset="0%" style="stop-color:#58d68d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2ecc71;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+</svg>`;
+
+        function generatePNG(size, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            const img = new Image();
+            const blob = new Blob([svgContent], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, size, size);
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+
+        function generateAll() {
+            generatePNG(192, 'canvas192');
+            setTimeout(() => generatePNG(512, 'canvas512'), 100);
+            setTimeout(() => generatePNG(32, 'canvas32'), 200);
+            setTimeout(() => generatePNG(16, 'canvas16'), 300);
+        }
+
+        // Auto-generate on page load
+        window.addEventListener('load', generateAll);
+    </script>
+</body>
+</html>
