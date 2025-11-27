@@ -13,6 +13,7 @@ function Particles({
   // Get data from Zustand stores
   const positions = useParticleStore(state => state.positions);
   const boxSize = useParticleStore(state => state.currentBoxSize);
+  const particleRadius = useParticleStore(state => state.particleRadius);
   const { selectedParticles, setSelectedParticles, isPathtracerEnabled } = useUIStore();
   const colorScheme = useUIStore(state => state.currentColorScheme);
   const showPatches = useUIStore(state => state.showPatchLegend);
@@ -35,12 +36,12 @@ function Particles({
   }, [isPathtracerEnabled, positions?.length]);
   
   const geometry = useMemo(() => {
-    const geom = new THREE.SphereGeometry(0.5, sphereSegments, sphereSegments);
+    const geom = new THREE.SphereGeometry(particleRadius, sphereSegments, sphereSegments);
     if (isPathtracerEnabled && positions?.length > 0) {
-      console.log(`Path tracer: Using ${sphereSegments}x${sphereSegments} sphere geometry for ${positions.length} particles`);
+      console.log(`Path tracer: Using ${sphereSegments}x${sphereSegments} sphere geometry with radius ${particleRadius} for ${positions.length} particles`);
     }
     return geom;
-  }, [sphereSegments, isPathtracerEnabled, positions?.length]);
+  }, [particleRadius, sphereSegments, isPathtracerEnabled, positions?.length]);
   
   // Use MeshPhysicalMaterial for better path tracing results
   const material = useMemo(

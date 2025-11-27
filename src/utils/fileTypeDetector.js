@@ -47,12 +47,17 @@ export async function detectFileType(file) {
       return 'mgl';
     }
 
-    // Check for patch files
-    if (isPatchFile(lines)) {
-      return 'patch';
-    }
+  // Check for patch files
+  if (isPatchFile(lines)) {
+    return 'patch';
+  }
 
-    return 'unknown';
+  // Check for input files
+  if (isInputFile(lines, file.name)) {
+    return 'input';
+  }
+
+  return 'unknown';
   } catch (error) {
     console.warn(`Error detecting file type for ${file.name}:`, error);
     return 'unknown';
@@ -262,6 +267,72 @@ function isPatchFile(lines) {
 }
 
 /**
+ * Checks if the file is an input file (contains simulation parameters)
+ * @param {string[]} lines - Lines from the file
+ * @param {string} filename - The filename for additional context
+ * @returns {boolean}
+ */
+function isInputFile(lines, filename) {
+  // Check filename first - must contain 'input' (case insensitive)
+  if (!filename.toLowerCase().includes('input')) {
+    return false;
+  }
+  
+  // Look for common input file patterns
+  let hasKeyValuePairs = false;
+  let hasSimulationParams = false;
+  
+  for (const line of lines.slice(0, 50)) { // Check first 50 lines
+    // Look for key = value patterns
+    if (/^\w+\s*=\s*.+/.test(line)) {
+      hasKeyValuePairs = true;
+    }
+    // Look for common simulation parameters
+    if (/(steps|temperature|density|box|particle|interaction|backend|topology|trajectory|conf_file|lastconf_file|trajectory_file)/i.test(line)) {
+      hasSimulationParams = true;
+    }
+  }
+  
+  return hasKeyValuePairs && hasSimulationParams;
+}
+
+/**
+ * Parses an input file and extracts simulation parameters
+ * @param {string} content - The full content of the input file
+ * @returns {Object} - Parsed parameters
+ */
+export function parseInputFile(content) {
+  const params = {};
+  const lines = content.split('\n');
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Skip empty lines and comments
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    
+    // Parse key = value pairs
+    const match = trimmed.match(/^(\w+)\s*=\s*(.+)/);
+    if (match) {
+      const key = match[1];
+      const value = match[2].trim();
+      
+      // Try to parse numeric values
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue)) {
+        params[key] = numValue;
+      } else {
+        params[key] = value;
+      }
+    }
+  }
+  
+  return params;
+}
+
+/**
  * Categorizes files based on detected types for easier processing
  * @param {Array} filesWithTypes - Array of {file, type} objects
  * @returns {Object} - Categorized files
@@ -275,6 +346,7 @@ export function categorizeFiles(filesWithTypes) {
     patchFiles: [],
     mglFile: null,
     mglTrajectory: null,
+    inputFile: null,
     unknown: []
   };
 
@@ -304,6 +376,9 @@ export function categorizeFiles(filesWithTypes) {
         break;
       case 'mgl-trajectory':
         categorized.mglTrajectory = file;
+        break;
+      case 'input':
+        categorized.inputFile = file;
         break;
       default:
         categorized.unknown.push(file);

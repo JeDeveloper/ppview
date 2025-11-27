@@ -82,7 +82,8 @@ export const exportSceneAsGLTF = (options) => {
     currentColorScheme,
     topData,
     highlightedClusters,
-    sceneRef
+    sceneRef,
+    particleRadius = 0.5 // Default to 0.5 if not provided
   } = options;
 
   if (!positions || positions.length === 0) {
@@ -222,8 +223,8 @@ export const exportSceneAsGLTF = (options) => {
   });
 
   // Create sphere geometries for different representations
-  const fullSphereGeometry = new THREE.SphereGeometry(0.5, 8, 6); // Full detail for highlighted
-  const hiddenSphereGeometry = new THREE.SphereGeometry(0.15, 4, 3); // Smaller, lower detail for hidden
+  const fullSphereGeometry = new THREE.SphereGeometry(particleRadius, 8, 6); // Full detail for highlighted
+  const hiddenSphereGeometry = new THREE.SphereGeometry(particleRadius * 0.3, 4, 3); // Smaller, lower detail for hidden
 
   // Create highlighted particles with full representation
   highlightedParticles.forEach((particles, typeIndex) => {

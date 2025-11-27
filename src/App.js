@@ -9,7 +9,7 @@ import ColorSchemeSelector from "./components/ColorSchemeSelector";
 import ClusteringPane from "./components/ClusteringPane";
 import PathTracerConfigModal from "./components/PathTracerConfigModal";
 import LightingControlsModal from "./components/LightingControlsModal";
-import { analyzeFiles, categorizeFiles } from "./utils/fileTypeDetector";
+import { analyzeFiles, categorizeFiles, parseInputFile } from "./utils/fileTypeDetector";
 import { readMGL, readMGLTrajectory, convertMGLToPPViewFormat } from "./utils/mglParser";
 import { parseTopFile, getParticleType } from "./utils/topologyParser";
 import { buildTrajIndex, parseConfiguration } from "./utils/trajectoryLoader";
@@ -57,6 +57,7 @@ function App() {
     setCurrentTime,
     setCurrentEnergy,
     setTotalConfigs,
+    setParticleRadius,
   } = useParticleStore();
 
   const {
@@ -151,6 +152,25 @@ function App() {
       const categorizedFiles = categorizeFiles(filesWithTypes);
 
       console.log("File analysis results:", categorizedFiles);
+
+      // Process input file if present
+      if (categorizedFiles.inputFile) {
+        try {
+          const inputContent = await categorizedFiles.inputFile.text();
+          const inputParams = parseInputFile(inputContent);
+          console.log('Parsed input file parameters:', inputParams);
+          
+          // Check for PATCHY_radius parameter
+          if (inputParams.PATCHY_radius !== undefined) {
+            const radius = inputParams.PATCHY_radius;
+            console.log(`Found PATCHY_radius in input file: ${radius}`);
+            setParticleRadius(radius);
+          }
+        } catch (error) {
+          console.warn('Error parsing input file:', error);
+          // Non-fatal error, continue processing other files
+        }
+      }
 
       // Process MGL files first (they don't need topology)
       if (categorizedFiles.mglFile || categorizedFiles.mglTrajectory) {
@@ -518,6 +538,7 @@ function App() {
 
   // Function to export the scene as GLTF
   const exportGLTF = useCallback(() => {
+    const particleRadius = useParticleStore.getState().particleRadius;
     exportSceneAsGLTF({
       positions,
       currentBoxSize,
@@ -527,7 +548,8 @@ function App() {
       currentColorScheme,
       topData,
       highlightedClusters,
-      sceneRef
+      sceneRef,
+      particleRadius
     });
   }, [positions, currentBoxSize, currentConfigIndex, showSimulationBox, showBackdropPlanes, currentColorScheme, topData, highlightedClusters, sceneRef]);
 

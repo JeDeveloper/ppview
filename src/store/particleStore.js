@@ -11,6 +11,7 @@ export const useParticleStore = create((set, get) => ({
   currentTime: 0,
   currentEnergy: [],
   totalConfigs: 0,
+  particleRadius: 0.5, // Default particle radius
   
   // Actions
   setPositions: (positions) => {
@@ -31,6 +32,7 @@ export const useParticleStore = create((set, get) => ({
   setCurrentTime: (time) => set({ currentTime: time }),
   setCurrentEnergy: (energy) => set({ currentEnergy: energy }),
   setTotalConfigs: (total) => set({ totalConfigs: total }),
+  setParticleRadius: (radius) => set({ particleRadius: radius }),
   
   // Computed values
   getUniqueParticleTypes: () => {
