@@ -247,6 +247,10 @@ function App() {
         const topContent = await topFile.text();
         const parsedTopData = await parseTopFile(topContent, fileMap, categorizedFiles.topology.format);
         setTopData(parsedTopData);
+        // SRS Springs format encodes per-particle radius in the topology
+        if (parsedTopData.srsParticleRadius !== undefined) {
+          setParticleRadius(parsedTopData.srsParticleRadius);
+        }
         console.log(`Loaded ${categorizedFiles.topology.format} topology from ${topFile.name}`);
       } else {
         // Fallback: look for .top extension

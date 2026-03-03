@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stats, Environment } from "@react-three/drei";
 import Particles from "./Particles";
+import Springs from "./Springs";
 import { Pathtracer } from "@react-three/gpu-pathtracer";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
@@ -369,6 +370,7 @@ function SceneContent({
       <Particles
         onParticleDoubleClick={handleParticleDoubleClick}
       />
+      <Springs />
 
       {/* Add subtle SSAO for gentle ambient occlusion (disabled when pathtracing) */}
       {!isPathtracerEnabled && (

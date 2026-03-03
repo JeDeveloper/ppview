@@ -108,6 +108,19 @@ function isTrajectoryFile(lines) {
 function analyzeTopologyFile(lines) {
   if (lines.length < 2) return null;
 
+  // Check for SRS Springs format (Bullview .psp):
+  // - First non-comment line has exactly 4 integer tokens
+  // - File contains at least one 'iS ' line (spring definition)
+  const nonCommentLines = lines.filter(l => !l.startsWith('#'));
+  if (nonCommentLines.length >= 1) {
+    const firstTokens = nonCommentLines[0].split(/\s+/);
+    if (firstTokens.length === 4 && firstTokens.every(t => !isNaN(parseInt(t)))) {
+      if (lines.some(l => /^iS\s/.test(l))) {
+        return 'topology-srs_springs';
+      }
+    }
+  }
+
   // Check first line: should be two numbers (particle count and type count)
   const headerTokens = lines[0].split(/\s+/);
   if (headerTokens.length !== 2 || headerTokens.some(token => isNaN(parseInt(token)))) {
@@ -363,7 +376,8 @@ export function categorizeFiles(filesWithTypes) {
       case 'topology-lorenzo':
       case 'topology-flavio':
       case 'topology-raspberry':
-        categorized.topology = {file, format: type.split('-')[1]};
+      case 'topology-srs_springs':
+        categorized.topology = {file, format: type.split('-').slice(1).join('_')};
         break;
       case 'trajectory':
         trajectoryFiles.push(file);
