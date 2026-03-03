@@ -3,13 +3,17 @@
 import React, { useRef, useEffect, useMemo } from "react";
 import * as THREE from 'three';
 import { getColorForPatchID } from '../utils/colorUtils';
+import { useParticleStore } from '../store/particleStore';
 
 function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = null, isPathtracerEnabled = false }) {
   const meshRef = useRef();
-  
-  // Patch cone dimensions
-  const coneRadius = 0.2;  // Base radius of the cone
-  const coneHeight = 0.4;  // Height of the cone
+  const particleRadius = useParticleStore(state => state.particleRadius);
+
+  // Patch cone dimensions — scaled proportionally to particle radius so patches
+  // remain visible on particles of any size.  Constants are tuned so that the
+  // default particleRadius=0.5 gives the original coneRadius=0.2, coneHeight=0.4.
+  const coneRadius = particleRadius * 0.4;
+  const coneHeight = particleRadius * 0.8;
   // Use moderate quality geometry for path tracing (not too high to avoid memory issues)
   const coneSegments = isPathtracerEnabled ? 16 : 8;  // Number of segments for cone base
 
@@ -90,9 +94,10 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
             patchOffset.z * patchOffset.z
           );
           
-          // If patch vector is approximately unit length (Flavio format), use 0.5 scaling
-          // If it's larger (Lorenzo format), use smaller scaling factor
-          const scaleFactor = patchVectorLength < 1.5 ? 0.5 : 0.5 / patchVectorLength;
+          // Scale patch offset so its tip lands on the particle surface.
+          // patchVectorLength < 1.5 → unit-vector style (Flavio): scale by particleRadius
+          // patchVectorLength ≥ 1.5 → absolute-position style (Lorenzo/SRS): normalise to surface
+          const scaleFactor = patchVectorLength < 1.5 ? particleRadius : particleRadius / patchVectorLength;
           
           const localPatchPosition = new THREE.Vector3(
             patchOffset.x,
@@ -208,7 +213,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
         // Note: This may not work perfectly with all path tracers
       }
     }
-  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
+  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme, particleRadius]);
 
   // Compute patch data for both rendering modes (must be before early return)
   const patchData = useMemo(() => {
@@ -246,7 +251,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
           patchOffset.z * patchOffset.z
         );
         
-        const scaleFactor = patchVectorLength < 1.5 ? 0.5 : 0.5 / patchVectorLength;
+        const scaleFactor = patchVectorLength < 1.5 ? particleRadius : particleRadius / patchVectorLength;
         
         const localPatchPosition = new THREE.Vector3(
           patchOffset.x,
@@ -287,7 +292,7 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
     }
     
     return patches;
-  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme]);
+  }, [particles, patchPositions, patchIDs, boxSize, hasValidPatchData, colorScheme, particleRadius]);
 
   // Return null if no valid patch data
   if (!hasValidPatchData) {
