@@ -154,15 +154,16 @@ function App() {
       console.log("File analysis results:", categorizedFiles);
 
       // Process input file if present
+      let inputFileParams = {};
       if (categorizedFiles.inputFile) {
         try {
           const inputContent = await categorizedFiles.inputFile.text();
-          const inputParams = parseInputFile(inputContent);
-          console.log('Parsed input file parameters:', inputParams);
-          
+          inputFileParams = parseInputFile(inputContent);
+          console.log('Parsed input file parameters:', inputFileParams);
+
           // Check for PATCHY_radius parameter
-          if (inputParams.PATCHY_radius !== undefined) {
-            const radius = inputParams.PATCHY_radius;
+          if (inputFileParams.PATCHY_radius !== undefined) {
+            const radius = inputFileParams.PATCHY_radius;
             console.log(`Found PATCHY_radius in input file: ${radius}`);
             setParticleRadius(radius);
           }
@@ -245,7 +246,10 @@ function App() {
       if (categorizedFiles.topology) {
         const topFile = categorizedFiles.topology.file;
         const topContent = await topFile.text();
-        const parsedTopData = await parseTopFile(topContent, fileMap, categorizedFiles.topology.format);
+        const parsedTopData = await parseTopFile(topContent, fileMap, categorizedFiles.topology.format, {
+          particleFile: inputFileParams.particle_file,
+          patchFile: inputFileParams.patchy_file,
+        });
         setTopData(parsedTopData);
         // SRS Springs format encodes per-particle radius in the topology
         if (parsedTopData.srsParticleRadius !== undefined) {
@@ -257,7 +261,10 @@ function App() {
         const topFile = files.find((file) => file.name.endsWith(".top"));
         if (topFile) {
           const topContent = await topFile.text();
-          const parsedTopData = await parseTopFile(topContent, fileMap);
+          const parsedTopData = await parseTopFile(topContent, fileMap, null, {
+            particleFile: inputFileParams.particle_file,
+            patchFile: inputFileParams.patchy_file,
+          });
           setTopData(parsedTopData);
           console.log(`Loaded topology from ${topFile.name} (fallback detection)`);
         } else {

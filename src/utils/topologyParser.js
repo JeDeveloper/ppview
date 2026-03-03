@@ -227,7 +227,8 @@ export const parseLorenzoTopology = async (lines, fileMap) => {
 };
 
 // Function to parse Flavio's topology
-export const parseFlavioTopology = async (content, fileMap) => {
+// options.particleFile / options.patchFile: filename hints from an oxDNA input file
+export const parseFlavioTopology = async (content, fileMap, options = {}) => {
   const lines = content.trim().split("\n");
   const headerTokens = lines[0].trim().split(/\s+/).map(Number);
   const totalParticles = headerTokens[0];
@@ -251,22 +252,23 @@ export const parseFlavioTopology = async (content, fileMap) => {
   let particlesData = null;
   let patchesData = null;
 
-  // Check for particles.txt file
-  const particleTxtFile = fileMap.get("particles.txt");
+  // Check for particles file — prefer name from input file, fall back to "particles.txt"
+  const particleFileName = options.particleFile || "particles.txt";
+  const particleTxtFile = fileMap.get(particleFileName) ?? fileMap.get("particles.txt");
   if (particleTxtFile) {
     const particleTxtContent = await particleTxtFile.text();
     particlesData = parseParticleTxt(particleTxtContent);
   } else {
-    console.warn("particles.txt file is missing for Flavio format.");
+    console.warn(`${particleFileName} (particles file) is missing for Flavio format.`);
     // Proceed without particlesData
   }
 
-  // Check for patches.txt file or .patch.txt files
-  let patchesTxtFile = fileMap.get("patches.txt");
+  // Check for patches file — prefer name from input file, then "patches.txt", then any *.patch.txt
+  let patchesTxtFile = (options.patchFile ? fileMap.get(options.patchFile) : null)
+    ?? fileMap.get("patches.txt");
 
-  // If patches.txt not found, look for .patch.txt files
+  // If still not found, look for any .patch.txt file
   if (!patchesTxtFile) {
-    // Find any file with .patch.txt extension
     for (const [fileName, file] of fileMap.entries()) {
       if (fileName.toLowerCase().endsWith('.patch.txt')) {
         patchesTxtFile = file;
@@ -637,7 +639,7 @@ export const parseOxDNANucleotideTopology = (content) => {
 };
 
 // Main function to parse the .top file (supports both Lorenzo's and Flavio's formats)
-export const parseTopFile = async (content, fileMap, detectedFormat = null) => {
+export const parseTopFile = async (content, fileMap, detectedFormat = null, options = {}) => {
   const lines = content.trim().split("\n");
 
   // Use detected format if provided, otherwise fall back to original detection logic
@@ -665,7 +667,7 @@ export const parseTopFile = async (content, fileMap, detectedFormat = null) => {
 
   if (isFlavioFormat) {
     // Parse Flavio's topology
-    return await parseFlavioTopology(content, fileMap);
+    return await parseFlavioTopology(content, fileMap, options);
   } else {
     // Parse Lorenzo's topology
     return await parseLorenzoTopology(lines, fileMap);
