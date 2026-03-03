@@ -3,6 +3,7 @@ import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stats, Environment } from "@react-three/drei";
 import Particles from "./Particles";
 import Springs from "./Springs";
+import OxDNANucleotides from "./OxDNANucleotides";
 import { Pathtracer } from "@react-three/gpu-pathtracer";
 import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
@@ -82,6 +83,7 @@ const ParticleScene = () => {
   // Get data from Zustand stores
   const positions = useParticleStore(state => state.positions);
   const currentBoxSize = useParticleStore(state => state.currentBoxSize);
+  const topData = useParticleStore(state => state.topData);
 
   const {
     selectedParticles,
@@ -137,6 +139,7 @@ const ParticleScene = () => {
             highlightedClusters={highlightedClusters}
             showOnlyHighlightedClusters={showOnlyHighlightedClusters}
             isPathtracerEnabled={isPathtracerEnabled}
+            isOxDNA={!!(topData?.nucleotides?.length)}
           />
         </Pathtracer>
       ) : (
@@ -154,6 +157,7 @@ const ParticleScene = () => {
           highlightedClusters={highlightedClusters}
           showOnlyHighlightedClusters={showOnlyHighlightedClusters}
           isPathtracerEnabled={isPathtracerEnabled}
+          isOxDNA={!!(topData?.nucleotides?.length)}
         />
       )}
     </Canvas>
@@ -174,6 +178,7 @@ function SceneContent({
   highlightedClusters,
   showOnlyHighlightedClusters,
   isPathtracerEnabled,
+  isOxDNA,
 }) {
   const controlsRef = useRef();
   const { scene, camera, invalidate, gl } = useThree();
@@ -367,9 +372,11 @@ function SceneContent({
         <CoordinateAxis boxSize={boxSize} />
       )}
 
-      <Particles
-        onParticleDoubleClick={handleParticleDoubleClick}
-      />
+      {isOxDNA ? (
+        <OxDNANucleotides onParticleDoubleClick={handleParticleDoubleClick} />
+      ) : (
+        <Particles onParticleDoubleClick={handleParticleDoubleClick} />
+      )}
       <Springs />
 
       {/* Add subtle SSAO for gentle ambient occlusion (disabled when pathtracing) */}

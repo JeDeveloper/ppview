@@ -16,6 +16,7 @@ A React-based visualization tool for molecular dynamics simulations, specificall
 - **Standard spherical particles** — rendered as instanced spheres
 - **Raspberry particles** — multi-bead particles with an inner core and outer repulsion beads; only the outer beads are visible and selectable
 - **SRS Springs particles** — spring-bonded particle chains with directional binding patches
+- **oxDNA nucleotides** — full nucleotide representation with backbone beads, nucleoside ellipsoids, and connector cylinders
 
 ### Patch Visualization
 - Patches rendered as outward-pointing cones on the particle surface
@@ -40,7 +41,17 @@ A React-based visualization tool for molecular dynamics simulations, specificall
   - Option to show only selected clusters (dims non-selected particles)
   - Highlighted clusters maintain their original particle colors but are scaled larger
 
+### oxDNA Nucleotide Visualization
+When a standard oxDNA topology (`.top`) is loaded, PPView automatically switches to the nucleotide representation matching the oxdna-viewer style:
+- **Backbone bead** (sphere r=0.2) — colored by strand, individually selectable
+- **Nucleoside** (ellipsoid r=0.3, flattened along the helix axis) — colored by base type: A=blue, G=yellow, C=green, T/U=red
+- **ns↔bb connector** (cylinder r=0.1) — colored by strand
+- **Backbone connector** (tapered cylinder r=0.1→0.02) — follows the sugar-phosphate backbone along the strand, hidden at periodic boundaries
+
+Strand colors cycle through four distinct colors to match standard DNA duplex conventions. Click a backbone bead to select and inspect it; Ctrl/Cmd+click for multi-selection; double-click to zoom the camera to that nucleotide.
+
 ### File Format Support
+- Standard oxDNA nucleotide topology (`.top` with `strandId base n3 n5` body lines)
 - Lorenzo's topology format (`.top` files)
 - Flavio's topology format with `particles.txt` and `patches.txt`
 - Raspberry topology format (`.top` with `iP`/`iR`/`iC` keywords)
@@ -65,8 +76,17 @@ A React-based visualization tool for molecular dynamics simulations, specificall
 
 ### File Formats
 
+#### Standard oxDNA nucleotide topology
+Drop a standard oxDNA `.top` file alongside a `.dat` trajectory. The topology format is:
+```
+<numNucleotides> <numStrands>
+<strandId> <base> <n3> <n5>   # one line per nucleotide; n3/n5 = -1 at chain ends
+...
+```
+PPView automatically detects this format and renders the full nucleotide representation. Backbone beads are clickable and show position and orientation in the selection panel.
+
 #### Lorenzo / Flavio topology
-Standard oxDNA `.top` file + `.dat` trajectory.
+Standard oxDNA `.top` file + `.dat` trajectory, used for patchy particle simulations.
 
 #### Raspberry particles
 Drop a `.top` file using `iP`/`iR`/`iC` keywords alongside a `.dat` trajectory. The inner center particle is hidden; the outer repulsion-site beads are rendered and are individually selectable.

@@ -140,6 +140,12 @@ function analyzeTopologyFile(lines) {
   // Check second line to distinguish formats
   const secondLineTokens = lines[1].split(/\s+/);
 
+  // oxDNA nucleotide topology: body lines have format "strandId base n3 n5"
+  // where the second token is a single nucleotide letter (A/T/G/C/U)
+  if (secondLineTokens.length === 4 && /^[ATGCUatgcu]$/.test(secondLineTokens[1])) {
+    return 'topology-oxdna_nucleotide';
+  }
+
   // Flavio format: second line contains particle types (all integers)
   if (secondLineTokens.length === totalParticles && 
       secondLineTokens.every(token => !isNaN(parseInt(token)) && !token.includes('.'))) {
@@ -377,6 +383,7 @@ export function categorizeFiles(filesWithTypes) {
       case 'topology-flavio':
       case 'topology-raspberry':
       case 'topology-srs_springs':
+      case 'topology-oxdna_nucleotide':
         categorized.topology = {file, format: type.split('-').slice(1).join('_')};
         break;
       case 'trajectory':
