@@ -46,7 +46,7 @@ Components read from stores directly — **no prop drilling**.
 |--------|-------|-----------|
 | oxDNA nucleotide | `.top` | 2-token header + 2nd line has nucleotide letter (A/T/G/C/U) as token[1] |
 | Lorenzo topology | `.top` | `<count> <type_count>` 2-token header |
-| Flavio topology | `particles.txt` + `patches.txt` | companion files |
+| Flavio topology | `*particles*.txt` + `*.patch.txt` | companion files (name-flexible) |
 | Raspberry topology | `.top` | `iP`/`iR`/`iC` keywords in file |
 | SRS Springs topology | `.psp` | 4-integer header + `iS` keyword in file |
 | MGL (self-contained) | `.mgl` | `@` separator + optional `.Box:` header |
@@ -119,12 +119,29 @@ iS <id> <k> <r0> <x> <y> <z>
 - Springs rendered by `Springs.js` as gray cylinders; springs longer than `min(box)/2` are hidden
 - Patches assigned per-particle from body line; `particlesByType` uses first particle's type as representative per strand
 
+### Flavio Companion File Lookup (`parseFlavioTopology`)
+`parseFlavioTopology(content, fileMap, options)` resolves the particles and patches files with a multi-step fallback:
+
+**Particles file** (in priority order):
+1. `options.particleFile` — exact name from `particle_file` field in a loaded oxDNA input file
+2. `"particles.txt"` — hardcoded fallback
+3. Any file in `fileMap` whose name matches `/particles.*\.txt$/i` (e.g. `CRYSTAL.particles (1).txt`)
+
+**Patches file** (in priority order):
+1. `options.patchFile` — exact name from `patchy_file` field in a loaded oxDNA input file
+2. `"patches.txt"` — hardcoded fallback
+3. Any file in `fileMap` whose name ends with `.patch.txt` (e.g. `sat3.patch.txt`)
+
+`options` is populated in `App.js` from a parsed oxDNA input file (`particle_file` / `patchy_file` keys). If no input file is present, `options` is `{}` and the fallbacks apply. `parseTopFile` accepts a 4th `options` argument and forwards it to `parseFlavioTopology`.
+
+**`PATCHY_radius` from input file**: parsed in `App.js` before topology loading and applied via `setParticleRadius`. For Flavio format, `srsParticleRadius` is never set, so the input-file value is preserved.
+
 ### Patch Rendering (`Patches.js`)
 - Cone tip placed at particle surface, base flares **outward** (away from center)
 - Cone geometry translated so tip = origin; rotated so +Y aligns with inward direction
 - `coneRadius = particleRadius * 0.4`, `coneHeight = particleRadius * 0.8` — proportional, format-agnostic
-- Scale factor heuristic: `patchVectorLength < 1.5` → unit-vector format (Flavio): `scaleFactor = particleRadius`; `>= 1.5` → absolute-position format (Lorenzo/SRS): `scaleFactor = particleRadius / patchVectorLength`
-- Both `useEffect` (standard instanced mode) and `useMemo patchData` (path tracer individual meshes) use the same `particleRadius`-aware scale
+- Scale factor: **always** `particleRadius / patchVectorLength` — normalises the patch direction vector to exactly `particleRadius` length, placing the tip on the sphere surface. Works for all formats: unit vectors (Lorenzo, ~1.0), sub-unit Flavio positions (~0.47), and larger absolute-position values. Degenerate vectors (< 1e-9) are skipped.
+- Both `useEffect` (standard instanced mode) and `useMemo patchData` (path tracer individual meshes) use the same scale formula
 - `particleRadius` is in dependency arrays of both `useEffect` and `useMemo`
 - Path tracer mode renders individual `<mesh>` elements per patch; standard mode uses `InstancedMesh`
 

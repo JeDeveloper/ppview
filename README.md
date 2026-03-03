@@ -88,6 +88,12 @@ PPView automatically detects this format and renders the full nucleotide represe
 #### Lorenzo / Flavio topology
 Standard oxDNA `.top` file + `.dat` trajectory, used for patchy particle simulations.
 
+For Flavio format, PPView also reads a particles file and a patches file. Filenames are matched flexibly:
+- **Particles**: any file whose name contains `particles` and ends in `.txt` (e.g. `CRYSTAL.particles.txt`, `CRYSTAL.particles (1).txt`)
+- **Patches**: any file whose name ends in `.patch.txt` (e.g. `sat3.patch.txt`)
+
+If you also drop an oxDNA **input file** (any file with `input` in its name, e.g. `input_sims`), PPView reads `PATCHY_radius` to set the particle display radius, and uses `particle_file`/`patchy_file` fields to locate the companion files by name.
+
 #### Raspberry particles
 Drop a `.top` file using `iP`/`iR`/`iC` keywords alongside a `.dat` trajectory. The inner center particle is hidden; the outer repulsion-site beads are rendered and are individually selectable.
 
