@@ -86,19 +86,19 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
             continue;
           }
 
-          // Compute the patch position and orientation
-          // Check if this is a unit vector (Flavio format) or larger value (Lorenzo format)
+          // Compute the patch position and orientation.
+          // Always normalise to the particle surface so the patch tip sits at radius=particleRadius
+          // regardless of whether the input vector is unit-length, sub-unit (Flavio ~0.5),
+          // or larger (Lorenzo/SRS > 1).
           const patchVectorLength = Math.sqrt(
-            patchOffset.x * patchOffset.x + 
-            patchOffset.y * patchOffset.y + 
+            patchOffset.x * patchOffset.x +
+            patchOffset.y * patchOffset.y +
             patchOffset.z * patchOffset.z
           );
-          
-          // Scale patch offset so its tip lands on the particle surface.
-          // patchVectorLength < 1.5 → unit-vector style (Flavio): scale by particleRadius
-          // patchVectorLength ≥ 1.5 → absolute-position style (Lorenzo/SRS): normalise to surface
-          const scaleFactor = patchVectorLength < 1.5 ? particleRadius : particleRadius / patchVectorLength;
-          
+          if (patchVectorLength < 1e-9) { index++; continue; } // degenerate — skip
+
+          const scaleFactor = particleRadius / patchVectorLength;
+
           const localPatchPosition = new THREE.Vector3(
             patchOffset.x,
             patchOffset.y,
@@ -244,15 +244,16 @@ function Patches({ particles, patchPositions, patchIDs, boxSize, colorScheme = n
           continue;
         }
 
-        // Compute the patch position and orientation
+        // Always normalise to the particle surface (same logic as instanced-mesh path above).
         const patchVectorLength = Math.sqrt(
-          patchOffset.x * patchOffset.x + 
-          patchOffset.y * patchOffset.y + 
+          patchOffset.x * patchOffset.x +
+          patchOffset.y * patchOffset.y +
           patchOffset.z * patchOffset.z
         );
-        
-        const scaleFactor = patchVectorLength < 1.5 ? particleRadius : particleRadius / patchVectorLength;
-        
+        if (patchVectorLength < 1e-9) continue; // degenerate — skip
+
+        const scaleFactor = particleRadius / patchVectorLength;
+
         const localPatchPosition = new THREE.Vector3(
           patchOffset.x,
           patchOffset.y,

@@ -252,9 +252,19 @@ export const parseFlavioTopology = async (content, fileMap, options = {}) => {
   let particlesData = null;
   let patchesData = null;
 
-  // Check for particles file — prefer name from input file, fall back to "particles.txt"
+  // Check for particles file — prefer name from input file, then "particles.txt",
+  // then any file whose name contains "particles" and ends with ".txt"
   const particleFileName = options.particleFile || "particles.txt";
-  const particleTxtFile = fileMap.get(particleFileName) ?? fileMap.get("particles.txt");
+  let particleTxtFile = fileMap.get(particleFileName) ?? fileMap.get("particles.txt");
+  if (!particleTxtFile) {
+    for (const [fileName, file] of fileMap.entries()) {
+      if (/particles.*\.txt$/i.test(fileName)) {
+        particleTxtFile = file;
+        console.log(`Using ${fileName} as particles file for Flavio format`);
+        break;
+      }
+    }
+  }
   if (particleTxtFile) {
     const particleTxtContent = await particleTxtFile.text();
     particlesData = parseParticleTxt(particleTxtContent);
