@@ -119,6 +119,11 @@ function analyzeTopologyFile(lines) {
 
   if (totalParticles <= 0 || typeCount <= 0) return null;
 
+  // Check for Raspberry format: lines with iP, iR, or iC keywords after header
+  if (lines.slice(1).some(line => /^i[PRC]\s/.test(line))) {
+    return 'topology-raspberry';
+  }
+
   // Check second line to distinguish formats
   const secondLineTokens = lines[1].split(/\s+/);
 
@@ -357,6 +362,7 @@ export function categorizeFiles(filesWithTypes) {
     switch (type) {
       case 'topology-lorenzo':
       case 'topology-flavio':
+      case 'topology-raspberry':
         categorized.topology = {file, format: type.split('-')[1]};
         break;
       case 'trajectory':

@@ -6,6 +6,7 @@ import { useParticleStore } from "../store/particleStore";
 import { useUIStore } from "../store/uiStore";
 import { useClusteringStore } from "../store/clusteringStore";
 import Patches from "./Patches";
+import RepulsionSites from "./RepulsionSites";
 
 function Particles({
   onParticleDoubleClick,
@@ -19,8 +20,18 @@ function Particles({
   const showPatches = useUIStore(state => state.showPatchLegend);
   const { highlightedClusters, showOnlyHighlightedClusters } = useClusteringStore();
   const meshRef = useRef();
+  const repulsionMeshDataRef = useRef(new Map()); // typeIndex → {mesh, numBeads, globalIndices, particlePositions}
   const count = Math.max(1, positions?.length || 0); // Ensure minimum count of 1
   const { gl, camera } = useThree(); // For raycasting
+
+  // Stable callback for RepulsionSites to register/unregister their mesh + metadata
+  const registerRepulsionMesh = useCallback((typeIndex, data) => {
+    if (data) {
+      repulsionMeshDataRef.current.set(typeIndex, data);
+    } else {
+      repulsionMeshDataRef.current.delete(typeIndex);
+    }
+  }, []);
 
   // Create geometry and material once
   // Adaptive quality based on particle count to avoid memory overflow:
@@ -109,7 +120,9 @@ function Particles({
         typeColor: particleColor,
         isInHighlightedCluster,
         shouldShow,
-        hasMGLColor: !!pos.mglColor
+        hasMGLColor: !!pos.mglColor,
+        baseScale: pos.particleType?.particleScale ?? 1.0,
+        hasRepulsionSites: !!(pos.particleType?.repulsionSiteData?.length)
       };
     });
   }, [positions, boxSize, particleColors, highlightedClusters, showOnlyHighlightedClusters]);
@@ -188,6 +201,7 @@ function Particles({
                 data.position.y,
                 data.position.z,
               );
+              dummy.scale.setScalar(data.hasRepulsionSites ? 0 : data.baseScale);
               dummy.updateMatrix();
               mesh.setMatrixAt(i, dummy.matrix);
 
@@ -253,44 +267,59 @@ function Particles({
     if (!meshRef.current || !camera) return;
 
     const pointer = getNormalizedMouseCoords(event);
-    if (!pointer) return; // Invalid coordinates or click outside canvas
+    if (!pointer) return;
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(pointer, camera);
 
     try {
+      // Check main particle mesh (skip hidden raspberry particles)
       const intersects = raycaster.intersectObject(meshRef.current);
-
       if (intersects.length > 0) {
         const instanceId = intersects[0].instanceId;
-
-        // Validate instanceId is within valid range
-        if (instanceId >= 0 && instanceId < particleData.length) {
+        if (instanceId >= 0 && instanceId < particleData.length && !particleData[instanceId].hasRepulsionSites) {
           if (event.ctrlKey || event.metaKey) {
-            // If Ctrl or Command key is pressed, toggle selection of the particle
-            if (Array.isArray(selectedParticles) && selectedParticles.includes(instanceId)) {
-              // Deselect particle
-              setSelectedParticles(selectedParticles.filter((id) => id !== instanceId));
+            const current = Array.isArray(selectedParticles) ? selectedParticles : [];
+            if (current.includes(instanceId)) {
+              setSelectedParticles(current.filter((id) => id !== instanceId));
             } else {
-              // Select particle
-              const current = Array.isArray(selectedParticles) ? selectedParticles : [];
               setSelectedParticles([...current, instanceId]);
             }
           } else {
-            // If Ctrl is not pressed, select only this particle
             setSelectedParticles([instanceId]);
           }
+          return;
         }
-      } else {
-        if (!event.ctrlKey && !event.metaKey) {
-          // If Ctrl is not pressed, clear selection
-          setSelectedParticles([]);
+      }
+
+      // Check repulsion site beads (raspberry particles)
+      for (const data of repulsionMeshDataRef.current.values()) {
+        const beadIntersects = raycaster.intersectObject(data.mesh);
+        if (beadIntersects.length > 0) {
+          const localIndex = Math.floor(beadIntersects[0].instanceId / data.numBeads);
+          const globalIndex = data.globalIndices[localIndex];
+          if (event.ctrlKey || event.metaKey) {
+            const current = Array.isArray(selectedParticles) ? selectedParticles : [];
+            if (current.includes(globalIndex)) {
+              setSelectedParticles(current.filter((id) => id !== globalIndex));
+            } else {
+              setSelectedParticles([...current, globalIndex]);
+            }
+          } else {
+            setSelectedParticles([globalIndex]);
+          }
+          return;
         }
+      }
+
+      // Nothing hit — clear selection (non-ctrl click only)
+      if (!event.ctrlKey && !event.metaKey) {
+        setSelectedParticles([]);
       }
     } catch (error) {
       console.warn('Error during particle selection:', error);
     }
-  }, [camera, setSelectedParticles, getNormalizedMouseCoords, particleData.length, isPathtracerEnabled]);
+  }, [camera, setSelectedParticles, getNormalizedMouseCoords, particleData, selectedParticles, isPathtracerEnabled]);
 
   const handleDoubleClick = useCallback((event) => {
     // Disable double-click navigation during pathtracing to avoid interrupting rendering
@@ -298,34 +327,41 @@ function Particles({
     if (!meshRef.current || !camera) return;
 
     const pointer = getNormalizedMouseCoords(event);
-    if (!pointer) return; // Invalid coordinates or click outside canvas
+    if (!pointer) return;
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(pointer, camera);
 
     try {
+      // Check main particle mesh
       const intersects = raycaster.intersectObject(meshRef.current);
-
       if (intersects.length > 0) {
         const instanceId = intersects[0].instanceId;
-
-        // Validate instanceId and get particle position
-        if (instanceId >= 0 && instanceId < particleData.length) {
+        if (instanceId >= 0 && instanceId < particleData.length && !particleData[instanceId].hasRepulsionSites) {
           const particlePosition = particleData[instanceId]?.position;
-
           if (particlePosition && onParticleDoubleClick) {
-            onParticleDoubleClick(new THREE.Vector3(
-              particlePosition.x,
-              particlePosition.y,
-              particlePosition.z
-            ));
+            onParticleDoubleClick(new THREE.Vector3(particlePosition.x, particlePosition.y, particlePosition.z));
           }
+          return;
+        }
+      }
+
+      // Check repulsion site beads
+      for (const data of repulsionMeshDataRef.current.values()) {
+        const beadIntersects = raycaster.intersectObject(data.mesh);
+        if (beadIntersects.length > 0) {
+          const localIndex = Math.floor(beadIntersects[0].instanceId / data.numBeads);
+          const position = data.particlePositions[localIndex];
+          if (position && onParticleDoubleClick) {
+            onParticleDoubleClick(position.clone());
+          }
+          return;
         }
       }
     } catch (error) {
       console.warn('Error during particle double-click:', error);
     }
-  }, [camera, particleData, onParticleDoubleClick, getNormalizedMouseCoords, isPathtracerEnabled]);
+  }, [camera, particleData, onParticleDoubleClick, getNormalizedMouseCoords, selectedParticles, isPathtracerEnabled]);
 
   // Raycaster for detecting clicks and double-clicks
   useEffect(() => {
@@ -359,17 +395,17 @@ function Particles({
         if (!data || !data.position) continue; // Skip if data is undefined or incomplete
 
         let color;
-        let scale = 1.0;
+        let scale = data.hasRepulsionSites ? 0 : data.baseScale;
 
         // Determine color based on selection and cluster highlighting
         if (Array.isArray(selectedParticles) && selectedParticles.includes(i)) {
           color = yellowColor; // Selected particles are yellow
         } else if (data.isInHighlightedCluster && highlightedClusters.size > 0) {
           color = data.typeColor; // Keep original particle color for highlighted clusters
-          scale = 1.3; // Make highlighted cluster particles larger
+          if (!data.hasRepulsionSites) scale = data.baseScale * 1.3;
         } else if (showOnlyHighlightedClusters && !data.shouldShow) {
           color = dimmedColor; // Dimmed particles when showing only clusters
-          scale = 0.3; // Much smaller to make them less visible
+          if (!data.hasRepulsionSites) scale = data.baseScale * 0.3;
         } else {
           color = data.typeColor; // Normal particle color
         }
@@ -397,16 +433,17 @@ function Particles({
     }
   }, [selectedParticles, particleData, highlightedClusters, showOnlyHighlightedClusters]);
 
-  // Group particles by type
+  // Group particles by type (tracking global indices for repulsion site selection)
   const particlesByType = useMemo(() => {
     const map = new Map();
     if (positions && positions.length > 0) {
-      positions.forEach((pos) => {
+      positions.forEach((pos, globalIndex) => {
         const typeIndex = pos.typeIndex;
         if (!map.has(typeIndex)) {
-          map.set(typeIndex, { particleType: pos.particleType, particles: [] });
+          map.set(typeIndex, { particleType: pos.particleType, particles: [], globalIndices: [] });
         }
         map.get(typeIndex).particles.push(pos);
+        map.get(typeIndex).globalIndices.push(globalIndex);
       });
     }
     return map;
@@ -424,7 +461,10 @@ function Particles({
         <>
           {particleData.map((data, i) => {
             if (!data || !data.position) return null;
-            
+
+            // Raspberry particles render via RepulsionSites beads instead
+            if (data.hasRepulsionSites) return null;
+
             // Hide noise particles (particles not in any cluster) when pathtracing
             // If clustering is active (highlightedClusters has any clusters) and particle is not in a cluster, hide it
             if (highlightedClusters.size > 0 && !data.isInHighlightedCluster) {
@@ -436,13 +476,13 @@ function Particles({
               return null;
             }
             
-            const color = (Array.isArray(selectedParticles) && selectedParticles.includes(i)) 
+            const color = (Array.isArray(selectedParticles) && selectedParticles.includes(i))
               ? new THREE.Color("yellow")
               : data.typeColor;
-              
-            const scale = (data.isInHighlightedCluster && highlightedClusters.size > 0)
+
+            const scale = data.baseScale * ((data.isInHighlightedCluster && highlightedClusters.size > 0)
               ? 1.3
-              : 1.0;
+              : 1.0);
             
             return (
               <mesh
@@ -468,6 +508,28 @@ function Particles({
         <instancedMesh ref={meshRef} args={[geometry, material, count]} castShadow receiveShadow>
           {/* This instancedMesh renders the particles */}
         </instancedMesh>
+      )}
+
+      {Array.from(particlesByType.values()).map(
+        ({ particleType, particles, globalIndices }, idx) => {
+          if (!particleType?.repulsionSiteData?.length) return null;
+          const typeColor = new THREE.Color(
+            particleColors[particleType.typeIndex % particleColors.length]
+          );
+          return (
+            <RepulsionSites
+              key={`repulsion-${particleType.typeIndex}-${idx}`}
+              particles={particles}
+              repulsionSiteData={particleType.repulsionSiteData}
+              boxSize={boxSize}
+              particleScale={particleType.particleScale ?? 1.0}
+              typeColor={typeColor}
+              globalIndices={globalIndices}
+              typeIndex={particleType.typeIndex}
+              onRegister={registerRepulsionMesh}
+            />
+          );
+        }
       )}
 
       {showPatches && Array.from(particlesByType.values()).map(

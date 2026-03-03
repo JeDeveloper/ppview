@@ -11,14 +11,28 @@ The PPView favicon shows a patchy particle with colored patches, representing th
 
 ## Generating PNG/ICO from SVG
 
-### Option 1: Using Node.js script (requires canvas package)
+### Option 1: Using Python script (RECOMMENDED)
+
+```bash
+pip3 install pillow cairosvg
+python3 generate_favicons.py
+```
+
+This will generate all required files including the .ico:
+- favicon.ico (multi-resolution: 16x16, 32x32, 48x48, 64x64)
+- favicon-16x16.png
+- favicon-32x32.png
+- logo192.png
+- logo512.png
+
+### Option 2: Using Node.js script (requires canvas package)
 
 ```bash
 npm install canvas
 node generate-favicons.js
 ```
 
-### Option 2: Using online tools
+### Option 3: Using online tools
 
 1. Go to https://realfavicongenerator.net/ or https://favicon.io/
 2. Upload `public/favicon.svg`
