@@ -22,7 +22,7 @@ function Particles({
   const meshRef = useRef();
   const repulsionMeshDataRef = useRef(new Map()); // typeIndex → {mesh, numBeads, globalIndices, particlePositions}
   const count = Math.max(1, positions?.length || 0); // Ensure minimum count of 1
-  const { gl, camera } = useThree(); // For raycasting
+  const { gl, camera, invalidate } = useThree(); // For raycasting + demand-mode invalidation
 
   // Stable callback for RepulsionSites to register/unregister their mesh + metadata
   const registerRepulsionMesh = useCallback((typeIndex, data) => {
@@ -92,6 +92,14 @@ function Particles({
     [colorScheme, particleTypeCount]
   );
 
+  // Pre-build THREE.Color objects indexed by typeIndex so the render body never
+  // allocates `new THREE.Color(...)` on every frame, which would change the
+  // typeColor prop reference and trigger unnecessary effects in RepulsionSites/Patches.
+  const stableTypeColors = useMemo(() =>
+    particleColors.map(hex => new THREE.Color(hex)),
+    [particleColors]
+  );
+
   // Memoize particle data to avoid recalculation
   const particleData = useMemo(() => {
     if (!positions || !Array.isArray(positions) || positions.length === 0) return [];
@@ -127,25 +135,6 @@ function Particles({
     });
   }, [positions, boxSize, particleColors, highlightedClusters, showOnlyHighlightedClusters]);
 
-  // Create colors array for the particles
-  const colors = useMemo(() => {
-    if (particleData.length === 0) return new Float32Array(0);
-
-    const colorArray = new Float32Array(particleData.length * 3);
-    for (let i = 0; i < particleData.length; i++) {
-      const data = particleData[i];
-      if (data && data.typeColor) {
-        const offset = i * 3;
-        if (offset + 2 < colorArray.length) {
-          colorArray[offset] = data.typeColor.r;
-          colorArray[offset + 1] = data.typeColor.g;
-          colorArray[offset + 2] = data.typeColor.b;
-        }
-      }
-    }
-    return colorArray;
-  }, [particleData]);
-
   // Update colors when color scheme changes
   useEffect(() => {
     if (meshRef.current && particleData.length > 0) {
@@ -178,19 +167,15 @@ function Particles({
     }
   }, [particleData, selectedParticles]);
 
-  // Set positions and colors for instanced particles (optimized)
+  // Set positions and colors for instanced particles.
+  // Uses setColorAt to update instanceColor in-place — avoids allocating a new
+  // InstancedBufferAttribute (and leaking the old GPU buffer) on every frame.
   useEffect(() => {
-    if (meshRef.current && particleData.length > 0 && colors.length > 0) {
+    if (meshRef.current && particleData.length > 0) {
       const mesh = meshRef.current;
       const dummy = new THREE.Object3D();
-
-      // Use mesh.count as the source of truth - it should match the number of instances we're working with
       const instanceCount = mesh.count;
 
-      // Create color array that exactly matches instance count
-      const instanceColorArray = new Float32Array(instanceCount * 3);
-
-      // Set positions and populate color array
       for (let i = 0; i < instanceCount; i++) {
         if (i < particleData.length) {
           const data = particleData[i];
@@ -205,12 +190,8 @@ function Particles({
               dummy.updateMatrix();
               mesh.setMatrixAt(i, dummy.matrix);
 
-              // Set color from colors array if available
-              const colorOffset = i * 3;
-              if (colorOffset + 2 < colors.length) {
-                instanceColorArray[colorOffset] = colors[colorOffset];
-                instanceColorArray[colorOffset + 1] = colors[colorOffset + 1];
-                instanceColorArray[colorOffset + 2] = colors[colorOffset + 2];
+              if (data.typeColor) {
+                mesh.setColorAt(i, data.typeColor);
               }
             } catch (error) {
               console.warn(`Error setting particle ${i} position:`, error);
@@ -220,15 +201,10 @@ function Particles({
       }
 
       mesh.instanceMatrix.needsUpdate = true;
-
-      // Set instance colors - create new attribute that matches mesh count exactly
-      try {
-        mesh.instanceColor = new THREE.InstancedBufferAttribute(instanceColorArray, 3);
-      } catch (error) {
-        console.warn('Error setting instance colors:', error);
-      }
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      invalidate(); // frameloop="demand": tell R3F the canvas needs a redraw
     }
-  }, [particleData, colors]);
+  }, [particleData, invalidate]);
 
   // Helper function to get normalized mouse coordinates relative to canvas
   const getNormalizedMouseCoords = useCallback((event) => {
@@ -351,7 +327,7 @@ function Particles({
         const beadIntersects = raycaster.intersectObject(data.mesh);
         if (beadIntersects.length > 0) {
           const localIndex = Math.floor(beadIntersects[0].instanceId / data.numBeads);
-          const position = data.particlePositions[localIndex];
+          const position = data.particlePositionsRef.current[localIndex];
           if (position && onParticleDoubleClick) {
             onParticleDoubleClick(position.clone());
           }
@@ -513,9 +489,7 @@ function Particles({
       {Array.from(particlesByType.values()).map(
         ({ particleType, particles, globalIndices }, idx) => {
           if (!particleType?.repulsionSiteData?.length) return null;
-          const typeColor = new THREE.Color(
-            particleColors[particleType.typeIndex % particleColors.length]
-          );
+          const typeColor = stableTypeColors[particleType.typeIndex % stableTypeColors.length];
           return (
             <RepulsionSites
               key={`repulsion-${particleType.typeIndex}-${idx}`}

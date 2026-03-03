@@ -9,7 +9,6 @@ import { EffectComposer, SSAO } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useParticleStore } from "../store/particleStore";
 import { useUIStore } from "../store/uiStore";
-import { useClusteringStore } from "../store/clusteringStore";
 
 // Coordinate Axis component using ArrowHelper - positioned at box corner
 function CoordinateAxis({ boxSize }) {
@@ -80,28 +79,22 @@ function CoordinateAxis({ boxSize }) {
 }
 
 const ParticleScene = () => {
-  // Get data from Zustand stores
-  const positions = useParticleStore(state => state.positions);
+  // Only subscribe to what ParticleScene itself renders.
+  // Particles/OxDNANucleotides/Patches all read positions from the store directly,
+  // so subscribing here would cause the entire Canvas subtree (lights, simulation box,
+  // orbit controls, SSAO) to re-render on every trajectory frame — unnecessary.
   const currentBoxSize = useParticleStore(state => state.currentBoxSize);
   const topData = useParticleStore(state => state.topData);
 
   const {
-    selectedParticles,
-    setSelectedParticles,
     setSceneRef,
     showSimulationBox,
     showBackdropPlanes,
     showCoordinateAxis,
-    showPatchLegend,
-    currentColorScheme,
     isPathtracerEnabled,
     pathtracerConfig,
   } = useUIStore();
 
-  const {
-    highlightedClusters,
-    showOnlyHighlightedClusters,
-  } = useClusteringStore();
   return (
     <Canvas
       shadows // Enable shadows for the scene
@@ -116,46 +109,32 @@ const ParticleScene = () => {
       }}
     >
       {isPathtracerEnabled ? (
-        <Pathtracer 
+        <Pathtracer
           key={`${showSimulationBox}-${showBackdropPlanes}-${showCoordinateAxis}`}
           enabled={true}
-          samples={pathtracerConfig.samples} 
+          samples={pathtracerConfig.samples}
           minSamples={pathtracerConfig.minSamples}
-          bounces={pathtracerConfig.bounces} 
+          bounces={pathtracerConfig.bounces}
           tiles={pathtracerConfig.tiles}
           resolutionScale={pathtracerConfig.resolutionScale}
         >
           <SceneContent
-            positions={positions}
             boxSize={currentBoxSize}
-            selectedParticles={selectedParticles}
-            setSelectedParticles={setSelectedParticles}
             onSceneReady={setSceneRef}
             showSimulationBox={showSimulationBox}
             showBackdropPlanes={showBackdropPlanes}
             showCoordinateAxis={showCoordinateAxis}
-            showPatches={showPatchLegend}
-            colorScheme={currentColorScheme}
-            highlightedClusters={highlightedClusters}
-            showOnlyHighlightedClusters={showOnlyHighlightedClusters}
             isPathtracerEnabled={isPathtracerEnabled}
             isOxDNA={!!(topData?.nucleotides?.length)}
           />
         </Pathtracer>
       ) : (
         <SceneContent
-          positions={positions}
           boxSize={currentBoxSize}
-          selectedParticles={selectedParticles}
-          setSelectedParticles={setSelectedParticles}
           onSceneReady={setSceneRef}
           showSimulationBox={showSimulationBox}
           showBackdropPlanes={showBackdropPlanes}
           showCoordinateAxis={showCoordinateAxis}
-          showPatches={showPatchLegend}
-          colorScheme={currentColorScheme}
-          highlightedClusters={highlightedClusters}
-          showOnlyHighlightedClusters={showOnlyHighlightedClusters}
           isPathtracerEnabled={isPathtracerEnabled}
           isOxDNA={!!(topData?.nucleotides?.length)}
         />
@@ -164,19 +143,15 @@ const ParticleScene = () => {
   );
 };
 
-function SceneContent({
-  positions,
+// React.memo: SceneContent only re-renders when its own props change.
+// Particles/OxDNANucleotides/Patches subscribe to Zustand directly,
+// so trajectory frame updates don't propagate up to lights, controls, and scene geometry.
+const SceneContent = React.memo(function SceneContent({
   boxSize,
-  selectedParticles,
-  setSelectedParticles,
   onSceneReady,
   showSimulationBox,
   showBackdropPlanes,
   showCoordinateAxis,
-  showPatches,
-  colorScheme,
-  highlightedClusters,
-  showOnlyHighlightedClusters,
   isPathtracerEnabled,
   isOxDNA,
 }) {
@@ -396,6 +371,6 @@ function SceneContent({
       <Stats />
     </>
   );
-}
+});
 
 export default ParticleScene;

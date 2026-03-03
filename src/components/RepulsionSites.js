@@ -7,6 +7,7 @@ import { useUIStore } from "../store/uiStore";
 // this component just manages transforms and colors.
 function RepulsionSites({ particles, repulsionSiteData, boxSize, particleScale = 1.0, typeColor, globalIndices, typeIndex, onRegister }) {
   const meshRef = useRef();
+  const particlePositionsRef = useRef([]); // stable ref — updated every frame without re-registering
   const { selectedParticles } = useUIStore();
 
   const geometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
@@ -19,53 +20,50 @@ function RepulsionSites({ particles, repulsionSiteData, boxSize, particleScale =
   const numBeads = repulsionSiteData?.length ?? 0;
   const totalBeads = hasValidData ? particles.length * numBeads : 0;
 
-  // Particle center positions in scene space (used by parent for double-click navigation)
-  const particlePositions = useMemo(() => {
-    if (!hasValidData) return [];
-    return particles.map(p => new THREE.Vector3(
-      p.x - boxSize[0] / 2,
-      p.y - boxSize[1] / 2,
-      p.z - boxSize[2] / 2,
-    ));
-  }, [particles, boxSize, hasValidData]);
-
-  // Register mesh + metadata with parent for centralized raycasting
+  // Register mesh + metadata with parent for centralized raycasting.
+  // Pass particlePositionsRef so Particles.js always reads the latest positions
+  // without causing a re-registration on every trajectory frame.
   useEffect(() => {
     if (onRegister && meshRef.current && hasValidData) {
-      onRegister(typeIndex, { mesh: meshRef.current, numBeads, globalIndices, particlePositions });
+      onRegister(typeIndex, { mesh: meshRef.current, numBeads, globalIndices, particlePositionsRef });
     }
     return () => {
       if (onRegister) onRegister(typeIndex, null);
     };
-  }, [onRegister, typeIndex, hasValidData, numBeads, globalIndices, particlePositions]);
+  }, [onRegister, typeIndex, hasValidData, numBeads, globalIndices]);
 
-  // Set bead transforms (positions + scales)
+  // Set bead transforms (positions + scales).
+  // Reuses localPos/rotMat objects across iterations to reduce GC pressure.
   useEffect(() => {
     if (!meshRef.current || !hasValidData) return;
 
     const mesh = meshRef.current;
     const dummy = new THREE.Object3D();
+    const localPos = new THREE.Vector3(); // reused across inner loop
+    const rotMat = new THREE.Matrix3();   // reused across particles
+    const positions = [];
     let index = 0;
 
     for (let i = 0; i < particles.length; i++) {
       const particle = particles[i];
-      const particlePosition = particlePositions[i];
+      const px = particle.x - boxSize[0] / 2;
+      const py = particle.y - boxSize[1] / 2;
+      const pz = particle.z - boxSize[2] / 2;
+      positions.push(new THREE.Vector3(px, py, pz));
 
-      let rotationMatrix = null;
-      if (particle.rotationMatrix) {
-        rotationMatrix = new THREE.Matrix3().fromArray(particle.rotationMatrix.elements);
-      }
+      const hasRotation = !!particle.rotationMatrix;
+      if (hasRotation) rotMat.fromArray(particle.rotationMatrix.elements);
 
       for (let j = 0; j < repulsionSiteData.length; j++) {
         const site = repulsionSiteData[j];
-        const localPos = new THREE.Vector3(
+        localPos.set(
           site.position.x * particleScale,
           site.position.y * particleScale,
           site.position.z * particleScale,
         );
-        if (rotationMatrix) localPos.applyMatrix3(rotationMatrix);
+        if (hasRotation) localPos.applyMatrix3(rotMat);
 
-        dummy.position.copy(localPos).add(particlePosition);
+        dummy.position.set(localPos.x + px, localPos.y + py, localPos.z + pz);
         dummy.scale.setScalar(site.radius * particleScale);
         dummy.updateMatrix();
         mesh.setMatrixAt(index, dummy.matrix);
@@ -73,16 +71,18 @@ function RepulsionSites({ particles, repulsionSiteData, boxSize, particleScale =
       }
     }
 
+    particlePositionsRef.current = positions;
     mesh.instanceMatrix.needsUpdate = true;
-  }, [particles, repulsionSiteData, particleScale, hasValidData, particlePositions]);
+  }, [particles, repulsionSiteData, particleScale, hasValidData, boxSize]);
 
-  // Update bead colors: yellow for selected particles, typeColor otherwise
+  // Update bead colors: yellow for selected particles, typeColor otherwise.
+  // Uses setColorAt to update the buffer in-place — avoids allocating a new
+  // InstancedBufferAttribute (and leaking the old GPU buffer) on every frame.
   useEffect(() => {
     if (!meshRef.current || !hasValidData) return;
 
     const mesh = meshRef.current;
     const yellowColor = new THREE.Color("yellow");
-    const colorArray = new Float32Array(totalBeads * 3);
 
     for (let i = 0; i < particles.length; i++) {
       const globalIndex = globalIndices ? globalIndices[i] : i;
@@ -91,17 +91,13 @@ function RepulsionSites({ particles, repulsionSiteData, boxSize, particleScale =
 
       if (color) {
         for (let j = 0; j < numBeads; j++) {
-          const base = (i * numBeads + j) * 3;
-          colorArray[base]     = color.r;
-          colorArray[base + 1] = color.g;
-          colorArray[base + 2] = color.b;
+          mesh.setColorAt(i * numBeads + j, color);
         }
       }
     }
 
-    mesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
-    mesh.instanceColor.needsUpdate = true;
-  }, [particles, typeColor, selectedParticles, globalIndices, hasValidData, totalBeads, numBeads]);
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [particles, typeColor, selectedParticles, globalIndices, hasValidData, numBeads]);
 
   if (!hasValidData) return null;
 

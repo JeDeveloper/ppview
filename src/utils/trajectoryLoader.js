@@ -20,7 +20,7 @@ export const buildTrajIndex = async (file) => {
       if (line.startsWith("t =")) {
         index.push(offset);
       }
-      offset += new TextEncoder().encode(line + "\n").length;
+      offset += line.length + 1; // ASCII trajectory files: 1 byte per char + 1 for \n
     }
   }
 

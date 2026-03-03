@@ -24,7 +24,14 @@ export const useParticleStore = create((set, get) => ({
       set({ positions });
     }
   },
-  setCurrentBoxSize: (boxSize) => set({ currentBoxSize: boxSize }),
+  setCurrentBoxSize: (boxSize) => {
+    // Only update when values actually change — prevents new array reference every frame
+    // for constant-box trajectories, which would trigger cascading re-renders.
+    const current = get().currentBoxSize;
+    if (Array.isArray(current) && current.length === boxSize.length &&
+        current[0] === boxSize[0] && current[1] === boxSize[1] && current[2] === boxSize[2]) return;
+    set({ currentBoxSize: boxSize });
+  },
   setTopData: (topData) => set({ topData }),
   setTrajFile: (trajFile) => set({ trajFile }),
   setConfigIndex: (index) => set({ configIndex: index }),

@@ -34,7 +34,7 @@ function OxDNANucleotides({ onParticleDoubleClick }) {
   const currentColorScheme = useUIStore(state => state.currentColorScheme);
   const { selectedParticles, setSelectedParticles } = useUIStore();
 
-  const { gl, camera } = useThree();
+  const { gl, camera, invalidate } = useThree();
 
   const bbRef = useRef();
   const nsRef = useRef();
@@ -260,7 +260,8 @@ function OxDNANucleotides({ onParticleDoubleClick }) {
     if (nsMesh.instanceColor) nsMesh.instanceColor.needsUpdate = true;
     if (conMesh.instanceColor) conMesh.instanceColor.needsUpdate = true;
     if (bbconMesh.instanceColor) bbconMesh.instanceColor.needsUpdate = true;
-  }, [positions, boxSize, nucleotides, count, currentColorScheme]);
+    invalidate(); // frameloop="demand": tell R3F the canvas needs a redraw
+  }, [positions, boxSize, nucleotides, count, currentColorScheme, invalidate]);
 
   // --- Selection effect: update backbone sphere colors only ---
   useEffect(() => {
