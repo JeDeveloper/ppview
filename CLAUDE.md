@@ -100,7 +100,9 @@ iC <type_id> <count> <patch_ids> <repulsion_ids>     # particle type
 - All raycasting for bead selection is handled by `Particles.js` via `registerRepulsionMesh` callback
 
 #### Selection architecture for raspberry particles
-`RepulsionSites` registers `{mesh, numBeads, globalIndices, particlePositions}` with `Particles.js` via `onRegister(typeIndex, data)`. The unified click handler in `Particles.js` first checks the main `InstancedMesh` (skipping particles that `hasRepulsionSites=true`), then iterates `repulsionMeshDataRef.current` to check bead meshes. This avoids the race condition of two separate native DOM click listeners.
+`RepulsionSites` registers `{mesh, numBeads, globalIndices, particlePositionsRef}` with `Particles.js` via `onRegister(typeIndex, data)`. The unified click handler in `Particles.js` first checks the main `InstancedMesh` (skipping particles that `hasRepulsionSites=true`), then iterates `repulsionMeshDataRef.current` to check bead meshes. This avoids the race condition of two separate native DOM click listeners.
+
+`particlePositionsRef` is a React ref (not a value): it is initialized once on registration and kept up-to-date by the transform effect each frame without triggering a re-registration. `Particles.js` reads `data.particlePositionsRef.current[localIndex]` at double-click time.
 
 ### SRS Springs Format (Bullview `.psp`)
 ```
@@ -162,9 +164,28 @@ iS <id> <k> <r0> <x> <y> <z>
 
 - **Instanced rendering**: `THREE.InstancedMesh` for particles, patches, repulsion site beads, springs, and all four nucleotide mesh types
 - **Zero-scale hidden instances**: skipped instances use `makeScale(0,0,0)` matrix instead of `continue` to avoid ghost geometry
-- **Demand rendering**: `frameloop="demand"` on Canvas (always-on when path tracing)
+- **Demand rendering**: `frameloop="demand"` on Canvas (always-on when path tracing). Components that update Three.js buffers (`Particles.js`, `OxDNANucleotides.js`) must call `invalidate()` from `useThree()` at the end of their position effects — otherwise the canvas does not redraw after trajectory frame changes.
 - **Memoized clustering**: only recomputes when epsilon/minPoints change
-- Color updates only touch the `instanceColor` buffer, not geometry
+
+### In-place GPU buffer updates (no VRAM leak)
+`mesh.instanceColor = new THREE.InstancedBufferAttribute(...)` replaces the JS object but never frees the old WebGL buffer (`gl.deleteBuffer` is never called, since `WebGLAttributes` uses a WeakMap keyed by the JS object). Over thousands of trajectory frames this grows GPU memory unboundedly.
+
+**Always use `mesh.setColorAt(i, color)` instead.** This auto-initialises `instanceColor` on first call (one allocation) and writes into the existing `Float32Array` on all subsequent calls. After updating all instances, set `mesh.instanceColor.needsUpdate = true`.
+
+### SceneContent render isolation (`ParticleScene.js`)
+`SceneContent` is wrapped in `React.memo`. `ParticleScene` does **not** subscribe to `positions` — only to `currentBoxSize` and `topData`. Particle/nucleotide components subscribe to `positions` directly from the Zustand store.
+
+This means a trajectory frame update only re-renders `Particles.js` (or `OxDNANucleotides.js`) and their children — **not** the lights, OrbitControls, simulation box, backdrop planes, or SSAO. Before this pattern, every frame change caused the entire Canvas subtree to reconcile.
+
+### Stable `currentBoxSize` identity (`particleStore.js`)
+`setCurrentBoxSize` is a no-op when the new values are identical to the current ones (numeric comparison, not reference). `parseConfiguration` creates a new array on every frame; without this guard, `currentBoxSize` would be a new reference every frame, causing `ParticleScene` (and `SceneContent` via props) to re-render even for constant-box trajectories.
+
+### Stable `typeColor` prop (`Particles.js`)
+`stableTypeColors` is a `useMemo` array of `THREE.Color` objects indexed by type, recomputed only when `particleColors` changes (i.e. on color-scheme change). The render body uses `stableTypeColors[typeIndex % length]` instead of `new THREE.Color(hex)`. This keeps `typeColor` prop reference-stable across frames, so `RepulsionSites`' and `Patches`' color effects only fire when the color actually changes.
+
+### Object reuse in hot effects
+- `RepulsionSites` transform effect: single `localPos = new THREE.Vector3()` and `rotMat = new THREE.Matrix3()` created once per effect call, reused across all particle/bead iterations via `.set()` / `.fromArray()`.
+- `buildTrajIndex`: uses `line.length + 1` (ASCII trajectory files) instead of `new TextEncoder().encode(line + "\n").length` — eliminates one `TextEncoder` allocation per line.
 
 ## Keyboard Shortcuts
 
