@@ -91,7 +91,7 @@ All positions computed from trajectory `a1`/`a3` vectors:
 # comments ignored
 iP <id> <strength> <color> <x,y,z> <a1x,a1y,a1z>   # patch definition
 iR <x,y,z> <radius>                                  # repulsion site (IDs by order)
-iC <type_id> <count> <patch_ids> <repulsion_ids>     # particle type
+iC <type_id> <count> <patch_ids> <repulsion_ids>     # particle type; patch_ids = -1 means no patches
 ```
 - Uses standard oxDNA trajectory (`.dat`) alongside
 - Parsed by `parseRaspberryTopology` in `topologyParser.js`

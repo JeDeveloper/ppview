@@ -425,7 +425,8 @@ export const parseRaspberryTopology = (content) => {
       // iC <type_id> <count> <patch_ids> <repulsion_site_ids>
       const typeId = parseInt(tokens[1]);
       const count = parseInt(tokens[2]);
-      const patchIds = tokens[3] ? tokens[3].split(',').map(Number) : [];
+      // A single -1 means "no patches" for this particle type
+      const patchIds = (tokens[3] === '-1') ? [] : (tokens[3] ? tokens[3].split(',').map(Number) : []);
       const repulsionIds = tokens[4] ? tokens[4].split(',').map(Number) : [];
       corpuscles.push({ typeId, count, patchIds, repulsionIds });
     }
